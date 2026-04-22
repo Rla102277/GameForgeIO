@@ -359,4 +359,115 @@ router.get("/projects/:projectId/change-log", async (req, res): Promise<void> =>
   res.json(log.reverse());
 });
 
+// NotebookLM source document — publicly readable HTML that NotebookLM can ingest as a URL source
+router.get("/projects/:projectId/notebooklm", async (req, res): Promise<void> => {
+  const projectId = parseInt(req.params.projectId, 10);
+  if (isNaN(projectId)) { res.status(400).send("Invalid project ID"); return; }
+
+  const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, projectId));
+  if (!project) { res.status(404).send("Project not found"); return; }
+
+  const [entities, rules, players] = await Promise.all([
+    db.select().from(entitiesTable).where(eq(entitiesTable.projectId, projectId)).orderBy(asc(entitiesTable.type)),
+    db.select().from(rulesTable).where(eq(rulesTable.projectId, projectId)).orderBy(asc(rulesTable.category)),
+    db.select().from(playersTable).where(eq(playersTable.projectId, projectId)),
+  ]);
+
+  // Load properties for all entities
+  const allEntityIds = entities.map(e => e.id);
+  const allProperties = allEntityIds.length > 0
+    ? await db.select().from(propertiesTable).where(sql`${propertiesTable.entityId} = ANY(${sql`ARRAY[${sql.join(allEntityIds.map(id => sql`${id}`), sql`, `)}]::integer[]`})`)
+    : [];
+
+  const propsByEntity = new Map<number, typeof allProperties>();
+  for (const p of allProperties) {
+    if (!propsByEntity.has(p.entityId)) propsByEntity.set(p.entityId, []);
+    propsByEntity.get(p.entityId)!.push(p);
+  }
+
+  const entityGroups = ["Item", "Faction", "Location", "Event"] as const;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${project.name} — Game Design Document</title>
+  <style>
+    body { font-family: Georgia, serif; max-width: 900px; margin: 40px auto; padding: 0 24px; line-height: 1.7; color: #1a1a1a; }
+    h1 { font-size: 2.2em; border-bottom: 3px solid #333; padding-bottom: 12px; }
+    h2 { font-size: 1.5em; margin-top: 2em; color: #222; border-bottom: 1px solid #ccc; padding-bottom: 6px; }
+    h3 { font-size: 1.1em; margin-top: 1.5em; color: #333; }
+    .meta { color: #555; font-size: 0.95em; margin-bottom: 2em; }
+    .entity { margin: 1em 0; padding: 12px 16px; background: #f9f9f9; border-left: 4px solid #666; border-radius: 2px; }
+    .entity-type { font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px; color: #888; font-weight: bold; }
+    .props { margin-top: 6px; font-size: 0.9em; color: #555; }
+    .rule { margin: 1em 0; padding: 10px 16px; background: #f5f5f5; border-left: 3px solid #999; }
+    .category { font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px; color: #888; font-weight: bold; }
+    .player { margin: 1em 0; padding: 12px 16px; background: #f5f5f5; border-left: 4px solid #555; }
+    .playstyle { font-size: 0.85em; color: #666; font-style: italic; }
+    footer { margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; font-size: 0.85em; color: #888; }
+  </style>
+</head>
+<body>
+<h1>${project.name}</h1>
+<div class="meta">
+  <strong>Genre:</strong> ${project.genre || "Unspecified"} &nbsp;|&nbsp;
+  <strong>Entities:</strong> ${entities.length} &nbsp;|&nbsp;
+  <strong>Rules:</strong> ${rules.length} &nbsp;|&nbsp;
+  <strong>Player Archetypes:</strong> ${players.length}
+</div>
+
+${project.description ? `<p>${project.description}</p>` : ""}
+
+<h2>Game Entities (Ontology)</h2>
+${entityGroups.map(type => {
+  const group = entities.filter(e => e.type === type);
+  if (!group.length) return "";
+  return `<h3>${type}s (${group.length})</h3>
+${group.map(e => {
+  const props = propsByEntity.get(e.id) ?? [];
+  return `<div class="entity">
+  <div class="entity-type">${e.type}</div>
+  <strong>${e.name}</strong>
+  ${e.description ? `<p>${e.description}</p>` : ""}
+  ${props.length ? `<div class="props"><strong>Properties:</strong> ${props.map(p => `${p.name} (${p.dataType}${p.defaultValue ? `, default: ${p.defaultValue}` : ""})`).join(", ")}</div>` : ""}
+</div>`;
+}).join("\n")}`;
+}).join("\n")}
+
+${entities.length === 0 ? "<p><em>No entities defined yet.</em></p>" : ""}
+
+<h2>Game Rules</h2>
+${(() => {
+  if (!rules.length) return "<p><em>No rules defined yet.</em></p>";
+  const categories = [...new Set(rules.map(r => r.category))].sort();
+  return categories.map(cat => `<h3>${cat.charAt(0).toUpperCase() + cat.slice(1).replace(/_/g, " ")} Rules</h3>
+${rules.filter(r => r.category === cat).map(r => `<div class="rule">
+  <div class="category">${r.category} &nbsp; Priority: ${r.priority ?? 1}</div>
+  <strong>${r.title}</strong>
+  <p>${r.content}</p>
+</div>`).join("\n")}`).join("\n");
+})()}
+
+${players.length > 0 ? `<h2>Player Archetypes</h2>
+${players.map((p: { name: string; playstyle?: string | null; description?: string | null; specialAbilities?: unknown; startingResources?: unknown }) => `<div class="player">
+  <strong>${p.name}</strong>
+  ${p.playstyle ? `<div class="playstyle">Playstyle: ${p.playstyle}</div>` : ""}
+  ${p.description ? `<p>${p.description}</p>` : ""}
+  ${p.specialAbilities ? `<p><strong>Special Abilities:</strong> ${JSON.stringify(p.specialAbilities)}</p>` : ""}
+  ${p.startingResources ? `<p><strong>Starting Resources:</strong> ${JSON.stringify(p.startingResources)}</p>` : ""}
+</div>`).join("\n")}` : ""}
+
+<footer>
+  Generated by AI Board Game Factory &nbsp;|&nbsp; ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+</footer>
+</body>
+</html>`;
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("X-Robots-Tag", "noindex");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.send(html);
+});
+
 export default router;
