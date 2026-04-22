@@ -348,6 +348,74 @@ Rules should reference the actual entities. Do NOT duplicate existing rules. Onl
   }
 });
 
+// AI: Enhance a single entity — improves description and suggests new properties
+router.post("/projects/:projectId/entities/:entityId/ai-enhance", async (req, res): Promise<void> => {
+  const projectId = parseInt(req.params.projectId, 10);
+  const entityId = parseInt(req.params.entityId, 10);
+  if (isNaN(projectId) || isNaN(entityId)) { res.status(400).json({ error: "Invalid IDs" }); return; }
+
+  const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, projectId));
+  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+
+  const [entity] = await db.select().from(entitiesTable).where(eq(entitiesTable.id, entityId));
+  if (!entity) { res.status(404).json({ error: "Entity not found" }); return; }
+
+  const existingProps = await db.select().from(propertiesTable).where(eq(propertiesTable.entityId, entityId));
+  const allEntities = await db.select().from(entitiesTable).where(eq(entitiesTable.projectId, projectId));
+
+  const prompt = `You are a board game design expert helping to enhance a game entity.
+
+Game: "${project.name}" | Genre: ${project.genre || "strategy"} | Description: ${project.description || "a board game"}
+Entity: "${entity.name}" | Type: ${entity.type}
+Current description: ${entity.description || "(none yet)"}
+Existing properties: ${existingProps.map(p => `${p.name} (${p.dataType})`).join(", ") || "none"}
+Other entities in game: ${allEntities.filter(e => e.id !== entityId).map(e => `${e.name}[${e.type}]`).join(", ") || "none"}
+
+Return a JSON object with:
+{
+  "description": "A vivid, specific 2-3 sentence description of this entity that captures its role in the game, its relationship to other entities, and what makes it interesting from a game design perspective.",
+  "lore": "1-2 sentences of optional in-world lore/flavor text that gives the entity character.",
+  "designNotes": "Brief note on its mechanical role and balance considerations (1-2 sentences).",
+  "suggestedProperties": [
+    {
+      "name": "property_name",
+      "dataType": "number|string|boolean|enum",
+      "defaultValue": "sensible default",
+      "reason": "Why this property matters for game design"
+    }
+  ]
+}
+
+Suggest 2-5 properties that are NOT already defined. Make them mechanically meaningful for a ${entity.type} in a ${project.genre || "board"} game. Only return the JSON object.`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 1500,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) { res.status(500).json({ error: "Could not parse AI response" }); return; }
+    res.json(JSON.parse(jsonMatch[0]));
+  } catch {
+    res.status(500).json({ error: "AI enhance failed" });
+  }
+});
+
+// AI: Update entity description
+router.patch("/projects/:projectId/entities/:entityId", async (req, res): Promise<void> => {
+  const projectId = parseInt(req.params.projectId, 10);
+  const entityId = parseInt(req.params.entityId, 10);
+  if (isNaN(projectId) || isNaN(entityId)) { res.status(400).json({ error: "Invalid IDs" }); return; }
+  const { description } = req.body;
+  const [updated] = await db.update(entitiesTable)
+    .set({ description })
+    .where(eq(entitiesTable.id, entityId))
+    .returning();
+  res.json(updated);
+});
+
 // Change log
 router.get("/projects/:projectId/change-log", async (req, res): Promise<void> => {
   const projectId = parseInt(req.params.projectId, 10);
