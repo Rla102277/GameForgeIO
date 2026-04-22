@@ -5,6 +5,8 @@ interface AppState {
   toggleEntity: (id: number) => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -16,6 +18,8 @@ export const useAppStore = create<AppState>((set) => ({
         [id]: !state.expandedEntities[id],
       },
     })),
-  activeTab: "ontology",
+  activeTab: "overview",
   setActiveTab: (tab) => set({ activeTab: tab }),
+  sidebarOpen: false,
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
 }));

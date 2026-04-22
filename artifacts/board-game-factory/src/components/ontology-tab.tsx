@@ -5,10 +5,14 @@ import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Plus, Trash2, ChevronDown, ChevronRight, Settings } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Plus, Trash2, ChevronDown, ChevronRight, Settings, Sparkles, Loader2, Check } from "lucide-react";
+
+type AIEntity = { name: string; type: string; description: string; properties?: { name: string; dataType: string; defaultValue?: string }[] };
 
 export default function OntologyTab({ projectId }: { projectId: number }) {
   const queryClient = useQueryClient();
@@ -18,6 +22,57 @@ export default function OntologyTab({ projectId }: { projectId: number }) {
   const { expandedEntities, toggleEntity } = useAppStore();
 
   const [newEntity, setNewEntity] = useState({ name: "", type: "Item", description: "" });
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  const [aiPrompt, setAIPrompt] = useState("");
+  const [aiCount, setAICount] = useState(5);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedEntities, setGeneratedEntities] = useState<AIEntity[]>([]);
+  const [selectedEntities, setSelectedEntities] = useState<Set<number>>(new Set());
+
+  const BASE = `${window.location.origin}/api`;
+
+  const handleAIGenerate = async () => {
+    setIsGenerating(true);
+    setGeneratedEntities([]);
+    try {
+      const res = await fetch(`${BASE}/projects/${projectId}/ai-generate-entities`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count: aiCount, prompt: aiPrompt }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGeneratedEntities(data);
+        setSelectedEntities(new Set(data.map((_: unknown, i: number) => i)));
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleAddSelectedEntities = async () => {
+    const toAdd = generatedEntities.filter((_, i) => selectedEntities.has(i));
+    for (const entity of toAdd) {
+      await new Promise<void>((resolve) => {
+        createEntity.mutate({ projectId, data: { name: entity.name, type: entity.type, description: entity.description } }, {
+          onSuccess: async (created) => {
+            if (entity.properties && created.id) {
+              for (const prop of entity.properties) {
+                await fetch(`${BASE}/projects/${projectId}/entities/${created.id}/properties`, {
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ name: prop.name, dataType: prop.dataType, defaultValue: prop.defaultValue }),
+                });
+              }
+            }
+            resolve();
+          },
+          onError: () => resolve(),
+        });
+      });
+    }
+    queryClient.invalidateQueries({ queryKey: getListEntitiesQueryKey(projectId) });
+    setGeneratedEntities([]);
+    setShowAIPanel(false);
+  };
 
   const handleCreateEntity = (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +104,86 @@ export default function OntologyTab({ projectId }: { projectId: number }) {
           <h2 className="text-2xl font-bold text-white">Entity Builder</h2>
           <p className="text-muted-foreground text-sm">Define the objects and concepts in your game.</p>
         </div>
+        <Button
+          onClick={() => setShowAIPanel(!showAIPanel)}
+          variant="outline"
+          className="border-primary/30 text-primary hover:bg-primary/10"
+        >
+          <Sparkles className="w-4 h-4 mr-2" />
+          AI Generate Entities
+        </Button>
       </div>
+
+      {/* AI Generate Panel */}
+      {showAIPanel && (
+        <Card className="bg-card border-primary/30 border">
+          <CardHeader className="py-4 px-6 border-b border-border bg-primary/5">
+            <CardTitle className="text-sm font-medium flex items-center gap-2 text-primary">
+              <Sparkles className="w-4 h-4" />
+              AI Entity Generator
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 space-y-4">
+            <div className="flex gap-3">
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs">Optional Guidance</Label>
+                <Textarea
+                  value={aiPrompt}
+                  onChange={e => setAIPrompt(e.target.value)}
+                  placeholder="e.g. Focus on economic resources and trade items..."
+                  className="bg-input h-16 resize-none text-sm"
+                />
+              </div>
+              <div className="w-24 space-y-1">
+                <Label className="text-xs">Count</Label>
+                <Select value={aiCount.toString()} onValueChange={v => setAICount(parseInt(v))}>
+                  <SelectTrigger className="bg-input"><SelectValue /></SelectTrigger>
+                  <SelectContent>{[3,5,8,10].map(n => <SelectItem key={n} value={n.toString()}>{n}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button onClick={handleAIGenerate} disabled={isGenerating} className="bg-primary text-primary-foreground w-full">
+              {isGenerating ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Generating...</> : <><Sparkles className="w-4 h-4 mr-2" />Generate Entities</>}
+            </Button>
+
+            {generatedEntities.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Select entities to add:</span>
+                  <div className="flex gap-2">
+                    <button className="text-xs text-primary hover:underline" onClick={() => setSelectedEntities(new Set(generatedEntities.map((_, i) => i)))}>All</button>
+                    <button className="text-xs text-muted-foreground hover:underline" onClick={() => setSelectedEntities(new Set())}>None</button>
+                  </div>
+                </div>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {generatedEntities.map((entity, i) => (
+                    <div
+                      key={i}
+                      className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${selectedEntities.has(i) ? "border-primary/40 bg-primary/5" : "border-border bg-muted/10"}`}
+                      onClick={() => setSelectedEntities(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next; })}
+                    >
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 ${selectedEntities.has(i) ? "border-primary bg-primary" : "border-border"}`}>
+                        {selectedEntities.has(i) && <Check className="w-3 h-3 text-primary-foreground" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-white text-sm">{entity.name}</span>
+                          <Badge variant="outline" className={`text-[10px] ${entity.type === "Item" ? "bg-blue-500/10 text-blue-400 border-blue-500/30" : entity.type === "Faction" ? "bg-purple-500/10 text-purple-400 border-purple-500/30" : entity.type === "Location" ? "bg-green-500/10 text-green-400 border-green-500/30" : "bg-amber-500/10 text-amber-400 border-amber-500/30"}`}>{entity.type}</Badge>
+                          {entity.properties && <span className="text-xs text-muted-foreground">{entity.properties.length} props</span>}
+                        </div>
+                        {entity.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{entity.description}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <Button onClick={handleAddSelectedEntities} disabled={selectedEntities.size === 0} className="w-full bg-primary text-primary-foreground">
+                  Add {selectedEntities.size} Selected Entities to Project
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="bg-card border-border">
         <CardHeader className="py-4 px-6 border-b border-border bg-muted/20">

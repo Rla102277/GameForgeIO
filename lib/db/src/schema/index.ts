@@ -7,3 +7,8 @@ export * from "./simulations";
 export * from "./assets";
 export * from "./conversations";
 export * from "./messages";
+export * from "./players";
+export * from "./collab_tasks";
+export * from "./project_files";
+export * from "./playtest_sessions";
+export * from "./change_log";

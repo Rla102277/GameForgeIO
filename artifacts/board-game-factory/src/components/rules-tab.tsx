@@ -8,7 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, Trash2, Bot, User, Trash } from "lucide-react";
+import { Send, Trash2, Bot, User, Trash, Sparkles, Loader2, Check } from "lucide-react";
+
+type AIRule = { title: string; content: string; category: string; priority?: number };
 
 export default function RulesTab({ projectId }: { projectId: number }) {
   const queryClient = useQueryClient();
@@ -17,6 +19,46 @@ export default function RulesTab({ projectId }: { projectId: number }) {
   const deleteRule = useDeleteRule();
 
   const [newRule, setNewRule] = useState({ title: "", content: "", category: "movement", priority: 1 });
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  const [aiPrompt, setAIPrompt] = useState("");
+  const [aiCount, setAICount] = useState(5);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedRules, setGeneratedRules] = useState<AIRule[]>([]);
+  const [selectedRules, setSelectedRules] = useState<Set<number>>(new Set());
+
+  const BASE = `${window.location.origin}/api`;
+
+  const handleAIGenerate = async () => {
+    setIsGenerating(true);
+    setGeneratedRules([]);
+    try {
+      const res = await fetch(`${BASE}/projects/${projectId}/ai-generate-rules`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count: aiCount, prompt: aiPrompt }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGeneratedRules(data);
+        setSelectedRules(new Set(data.map((_: unknown, i: number) => i)));
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleAddSelectedRules = async () => {
+    const toAdd = generatedRules.filter((_, i) => selectedRules.has(i));
+    for (const rule of toAdd) {
+      await new Promise<void>((resolve) => {
+        createRule.mutate({ projectId, data: { title: rule.title, content: rule.content, category: rule.category, priority: rule.priority ?? 1 } }, {
+          onSuccess: () => resolve(), onError: () => resolve(),
+        });
+      });
+    }
+    queryClient.invalidateQueries({ queryKey: getListRulesQueryKey(projectId) });
+    setGeneratedRules([]);
+    setShowAIPanel(false);
+  };
 
   const handleAddRule = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,8 +84,75 @@ export default function RulesTab({ projectId }: { projectId: number }) {
   return (
     <div className="flex h-full gap-6">
       <div className="w-1/2 flex flex-col h-full overflow-hidden">
-        <h2 className="text-xl font-bold text-white mb-4">Rules Library</h2>
-        
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white">Rules Library</h2>
+          <Button
+            onClick={() => setShowAIPanel(!showAIPanel)}
+            variant="outline"
+            size="sm"
+            className="border-primary/30 text-primary hover:bg-primary/10"
+          >
+            <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+            AI Generate
+          </Button>
+        </div>
+
+        {showAIPanel && (
+          <Card className="p-4 bg-card border-primary/30 border mb-4 shrink-0 space-y-3">
+            <p className="text-xs font-medium text-primary flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> AI Rule Generator</p>
+            <div className="flex gap-2">
+              <Textarea
+                value={aiPrompt}
+                onChange={e => setAIPrompt(e.target.value)}
+                placeholder="Focus on specific aspects (e.g. combat mechanics, resource management)..."
+                className="bg-input h-14 resize-none text-xs flex-1"
+              />
+              <div className="w-16 shrink-0 space-y-1">
+                <Label className="text-xs">Count</Label>
+                <Select value={aiCount.toString()} onValueChange={v => setAICount(parseInt(v))}>
+                  <SelectTrigger className="h-8 bg-input text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>{[3,5,8].map(n => <SelectItem key={n} value={n.toString()}>{n}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button onClick={handleAIGenerate} disabled={isGenerating} size="sm" className="w-full bg-primary text-primary-foreground">
+              {isGenerating ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />Generating...</> : <><Sparkles className="w-3.5 h-3.5 mr-1.5" />Generate</>}
+            </Button>
+            {generatedRules.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Select rules to add:</span>
+                  <div className="flex gap-2">
+                    <button className="text-primary hover:underline" onClick={() => setSelectedRules(new Set(generatedRules.map((_, i) => i)))}>All</button>
+                    <button className="text-muted-foreground hover:underline" onClick={() => setSelectedRules(new Set())}>None</button>
+                  </div>
+                </div>
+                <div className="space-y-1.5 max-h-52 overflow-y-auto">
+                  {generatedRules.map((rule, i) => (
+                    <div
+                      key={i}
+                      className={`flex items-start gap-2 p-2.5 rounded border cursor-pointer text-xs transition-colors ${selectedRules.has(i) ? "border-primary/40 bg-primary/5" : "border-border bg-muted/10"}`}
+                      onClick={() => setSelectedRules(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next; })}
+                    >
+                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 ${selectedRules.has(i) ? "border-primary bg-primary" : "border-border"}`}>
+                        {selectedRules.has(i) && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                      </div>
+                      <div>
+                        <span className="font-medium text-white">{rule.title}</span>
+                        <Badge variant="outline" className={`ml-2 text-[10px] ${getCategoryColor(rule.category)}`}>{rule.category}</Badge>
+                        <p className="text-muted-foreground mt-0.5 line-clamp-2">{rule.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <Button onClick={handleAddSelectedRules} disabled={selectedRules.size === 0} size="sm" className="w-full bg-primary text-primary-foreground">
+                  Add {selectedRules.size} Rules
+                </Button>
+              </div>
+            )}
+          </Card>
+        )}
+
         <Card className="p-4 bg-card border-border mb-6 shrink-0">
           <form onSubmit={handleAddRule} className="space-y-3">
             <div className="flex gap-3">

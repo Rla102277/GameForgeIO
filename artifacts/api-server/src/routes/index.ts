@@ -9,6 +9,10 @@ import assetsRouter from "./assets";
 import exportRouter from "./export";
 import anthropicRouter from "./anthropic-routes";
 import openaiRouter from "./openai-routes";
+import playersRouter from "./players";
+import collabTasksRouter from "./collab-tasks";
+import playtestRouter from "./playtest";
+import gameSetupRouter from "./game-setup";
 
 const router: IRouter = Router();
 
@@ -22,5 +26,9 @@ router.use(assetsRouter);
 router.use(exportRouter);
 router.use(anthropicRouter);
 router.use(openaiRouter);
+router.use(playersRouter);
+router.use(collabTasksRouter);
+router.use(playtestRouter);
+router.use(gameSetupRouter);
 
 export default router;
