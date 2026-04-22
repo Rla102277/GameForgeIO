@@ -3,13 +3,31 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: AI Board Game Factory API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: projects
+    description: Board game project management
+  - name: entities
+    description: Game entity (ontology) management
+  - name: properties
+    description: Entity property management
+  - name: rules
+    description: Rules sandbox and AI conversation
+  - name: simulation
+    description: Economic Monte Carlo simulation
+  - name: assets
+    description: Asset generation (cards, images)
+  - name: export
+    description: Export to Tabletop Simulator / Markdown
+  - name: anthropic
+    description: Anthropic AI chat operations
+  - name: openai
+    description: OpenAI AI chat, image, and audio operations
 paths:
   /healthz:
     get:
@@ -24,6 +42,1009 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Projects ──────────────────────────────────────────────────────────────
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List all game projects
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Create a new board game project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectBody"
+      responses:
+        "201":
+          description: Created project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+
+  /projects/{id}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get a project with full details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectWithDetails"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateProject
+      tags: [projects]
+      summary: Update a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProjectBody"
+      responses:
+        "200":
+          description: Updated project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteProject
+      tags: [projects]
+      summary: Delete a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /projects/{id}/stats:
+    get:
+      operationId: getProjectStats
+      tags: [projects]
+      summary: Get project statistics (entity count, property count, rule count)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectStats"
+
+  # ── Entities ──────────────────────────────────────────────────────────────
+  /projects/{projectId}/entities:
+    get:
+      operationId: listEntities
+      tags: [entities]
+      summary: List all entities in a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of entities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Entity"
+    post:
+      operationId: createEntity
+      tags: [entities]
+      summary: Create a new entity in a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEntityBody"
+      responses:
+        "201":
+          description: Created entity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entity"
+
+  /projects/{projectId}/entities/{id}:
+    get:
+      operationId: getEntity
+      tags: [entities]
+      summary: Get an entity with its properties
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Entity with properties
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EntityWithProperties"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateEntity
+      tags: [entities]
+      summary: Update an entity
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEntityBody"
+      responses:
+        "200":
+          description: Updated entity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entity"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteEntity
+      tags: [entities]
+      summary: Delete an entity
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Properties ────────────────────────────────────────────────────────────
+  /projects/{projectId}/entities/{entityId}/properties:
+    get:
+      operationId: listProperties
+      tags: [properties]
+      summary: List all properties of an entity
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of properties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Property"
+    post:
+      operationId: createProperty
+      tags: [properties]
+      summary: Add a property to an entity
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePropertyBody"
+      responses:
+        "201":
+          description: Created property
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+
+  /projects/{projectId}/entities/{entityId}/properties/{id}:
+    patch:
+      operationId: updateProperty
+      tags: [properties]
+      summary: Update a property
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePropertyBody"
+      responses:
+        "200":
+          description: Updated property
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteProperty
+      tags: [properties]
+      summary: Delete a property
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Rules ─────────────────────────────────────────────────────────────────
+  /projects/{projectId}/rules:
+    get:
+      operationId: listRules
+      tags: [rules]
+      summary: List all rules for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Rule"
+    post:
+      operationId: createRule
+      tags: [rules]
+      summary: Create a new rule for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRuleBody"
+      responses:
+        "201":
+          description: Created rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+
+  /projects/{projectId}/rules/{id}:
+    patch:
+      operationId: updateRule
+      tags: [rules]
+      summary: Update a rule
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRuleBody"
+      responses:
+        "200":
+          description: Updated rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteRule
+      tags: [rules]
+      summary: Delete a rule
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /projects/{projectId}/rules-sandbox:
+    post:
+      operationId: sendRulesSandboxMessage
+      tags: [rules]
+      summary: Send a message to the rules sandbox AI (SSE stream with full project context)
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RulesSandboxMessageBody"
+      responses:
+        "200":
+          description: SSE stream of AI response chunks
+          content:
+            text/event-stream: {}
+
+  /projects/{projectId}/rules-sandbox/history:
+    get:
+      operationId: getRulesSandboxHistory
+      tags: [rules]
+      summary: Get rules sandbox chat history for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Chat history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SandboxMessage"
+    delete:
+      operationId: clearRulesSandboxHistory
+      tags: [rules]
+      summary: Clear rules sandbox chat history
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Cleared
+
+  # ── Simulation ────────────────────────────────────────────────────────────
+  /projects/{projectId}/simulate:
+    post:
+      operationId: runSimulation
+      tags: [simulation]
+      summary: Run a Monte Carlo economic simulation
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulationConfig"
+      responses:
+        "200":
+          description: Simulation results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulationResult"
+
+  /projects/{projectId}/simulation-history:
+    get:
+      operationId: listSimulations
+      tags: [simulation]
+      summary: List saved simulation runs
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of simulation runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SimulationRun"
+
+  # ── Assets ────────────────────────────────────────────────────────────────
+  /projects/{projectId}/assets:
+    get:
+      operationId: listAssets
+      tags: [assets]
+      summary: List all generated assets for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of assets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Asset"
+    post:
+      operationId: createAsset
+      tags: [assets]
+      summary: Create/save an asset
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAssetBody"
+      responses:
+        "201":
+          description: Created asset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+
+  /projects/{projectId}/assets/{id}:
+    delete:
+      operationId: deleteAsset
+      tags: [assets]
+      summary: Delete an asset
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /projects/{projectId}/generate-card-description:
+    post:
+      operationId: generateCardDescription
+      tags: [assets]
+      summary: Generate card flavor text and description using AI (SSE stream)
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateCardDescriptionBody"
+      responses:
+        "200":
+          description: SSE stream of generated description
+          content:
+            text/event-stream: {}
+
+  /projects/{projectId}/generate-asset-image:
+    post:
+      operationId: generateAssetImage
+      tags: [assets]
+      summary: Generate an image for a game asset using AI
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateAssetImageBody"
+      responses:
+        "200":
+          description: Generated image data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedImageResponse"
+
+  # ── Export ────────────────────────────────────────────────────────────────
+  /projects/{projectId}/export/tabletop-simulator:
+    get:
+      operationId: exportTabletopSimulator
+      tags: [export]
+      summary: Export project as Tabletop Simulator JSON object states
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Tabletop Simulator export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TabletopSimulatorExport"
+
+  /projects/{projectId}/export/rulebook:
+    get:
+      operationId: exportRulebook
+      tags: [export]
+      summary: Export project as a Markdown rulebook
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Markdown rulebook
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RulebookExport"
+
+  # ── Anthropic (Rules Sandbox AI) ──────────────────────────────────────────
+  /anthropic/conversations:
+    get:
+      operationId: listAnthropicConversations
+      tags: [anthropic]
+      summary: List all conversations
+      responses:
+        "200":
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnthropicConversation"
+    post:
+      operationId: createAnthropicConversation
+      tags: [anthropic]
+      summary: Create a new conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAnthropicConversationBody"
+      responses:
+        "201":
+          description: Created conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnthropicConversation"
+  /anthropic/conversations/{id}:
+    get:
+      operationId: getAnthropicConversation
+      tags: [anthropic]
+      summary: Get conversation with messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation with messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnthropicConversationWithMessages"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnthropicError"
+    delete:
+      operationId: deleteAnthropicConversation
+      tags: [anthropic]
+      summary: Delete a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnthropicError"
+  /anthropic/conversations/{id}/messages:
+    get:
+      operationId: listAnthropicMessages
+      tags: [anthropic]
+      summary: List messages in a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnthropicMessage"
+    post:
+      operationId: sendAnthropicMessage
+      tags: [anthropic]
+      summary: Send a message and receive an AI response (SSE stream)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendAnthropicMessageBody"
+      responses:
+        "200":
+          description: SSE stream of assistant response chunks
+          content:
+            text/event-stream: {}
+
+  # ── OpenAI (Asset Generator) ───────────────────────────────────────────────
+  /openai/conversations:
+    get:
+      operationId: listOpenaiConversations
+      tags: [openai]
+      summary: List all conversations
+      responses:
+        "200":
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OpenaiConversation"
+    post:
+      operationId: createOpenaiConversation
+      tags: [openai]
+      summary: Create a new conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOpenaiConversationBody"
+      responses:
+        "201":
+          description: Created conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiConversation"
+  /openai/conversations/{id}:
+    get:
+      operationId: getOpenaiConversation
+      tags: [openai]
+      summary: Get conversation with messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation with messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiConversationWithMessages"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiError"
+    delete:
+      operationId: deleteOpenaiConversation
+      tags: [openai]
+      summary: Delete a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiError"
+  /openai/conversations/{id}/messages:
+    get:
+      operationId: listOpenaiMessages
+      tags: [openai]
+      summary: List messages in a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OpenaiMessage"
+    post:
+      operationId: sendOpenaiMessage
+      tags: [openai]
+      summary: Send a text message and receive a streaming text response
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendOpenaiMessageBody"
+      responses:
+        "200":
+          description: SSE stream of assistant text chunks
+          content:
+            text/event-stream: {}
+  /openai/generate-image:
+    post:
+      operationId: generateOpenaiImage
+      tags: [openai]
+      summary: Generate an image from a text prompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateOpenaiImageBody"
+      responses:
+        "200":
+          description: Generated image data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateOpenaiImageResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +1055,790 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    # ── Projects ──────────────────────────────────────────────────────────
+    Project:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        genre:
+          type: ["string", "null"]
+        playerCount:
+          type: ["string", "null"]
+        targetDuration:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - createdAt
+        - updatedAt
+
+    ProjectWithDetails:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        genre:
+          type: ["string", "null"]
+        playerCount:
+          type: ["string", "null"]
+        targetDuration:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        entities:
+          type: array
+          items:
+            $ref: "#/components/schemas/EntityWithProperties"
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/Rule"
+      required:
+        - id
+        - name
+        - createdAt
+        - updatedAt
+        - entities
+        - rules
+
+    ProjectStats:
+      type: object
+      properties:
+        projectId:
+          type: integer
+        entityCount:
+          type: integer
+        propertyCount:
+          type: integer
+        ruleCount:
+          type: integer
+        assetCount:
+          type: integer
+        simulationCount:
+          type: integer
+      required:
+        - projectId
+        - entityCount
+        - propertyCount
+        - ruleCount
+        - assetCount
+        - simulationCount
+
+    CreateProjectBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        genre:
+          type: ["string", "null"]
+        playerCount:
+          type: ["string", "null"]
+        targetDuration:
+          type: ["string", "null"]
+      required:
+        - name
+
+    UpdateProjectBody:
+      type: object
+      properties:
+        name:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        genre:
+          type: ["string", "null"]
+        playerCount:
+          type: ["string", "null"]
+        targetDuration:
+          type: ["string", "null"]
+
+    # ── Entities ──────────────────────────────────────────────────────────
+    Entity:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+          description: "e.g. Item, Faction, Location, Event"
+        description:
+          type: ["string", "null"]
+        color:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - projectId
+        - name
+        - type
+        - createdAt
+        - updatedAt
+
+    EntityWithProperties:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+        description:
+          type: ["string", "null"]
+        color:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        properties:
+          type: array
+          items:
+            $ref: "#/components/schemas/Property"
+      required:
+        - id
+        - projectId
+        - name
+        - type
+        - createdAt
+        - updatedAt
+        - properties
+
+    CreateEntityBody:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        description:
+          type: ["string", "null"]
+        color:
+          type: ["string", "null"]
+      required:
+        - name
+        - type
+
+    UpdateEntityBody:
+      type: object
+      properties:
+        name:
+          type: ["string", "null"]
+        type:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        color:
+          type: ["string", "null"]
+
+    # ── Properties ────────────────────────────────────────────────────────
+    Property:
+      type: object
+      properties:
+        id:
+          type: integer
+        entityId:
+          type: integer
+        name:
+          type: string
+        dataType:
+          type: string
+          description: "e.g. number, string, boolean, enum"
+        defaultValue:
+          type: ["string", "null"]
+        minValue:
+          type: ["string", "null"]
+        maxValue:
+          type: ["string", "null"]
+        unit:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - entityId
+        - name
+        - dataType
+        - createdAt
+
+    CreatePropertyBody:
+      type: object
+      properties:
+        name:
+          type: string
+        dataType:
+          type: string
+        defaultValue:
+          type: ["string", "null"]
+        minValue:
+          type: ["string", "null"]
+        maxValue:
+          type: ["string", "null"]
+        unit:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+      required:
+        - name
+        - dataType
+
+    UpdatePropertyBody:
+      type: object
+      properties:
+        name:
+          type: ["string", "null"]
+        dataType:
+          type: ["string", "null"]
+        defaultValue:
+          type: ["string", "null"]
+        minValue:
+          type: ["string", "null"]
+        maxValue:
+          type: ["string", "null"]
+        unit:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+
+    # ── Rules ─────────────────────────────────────────────────────────────
+    Rule:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        category:
+          type: ["string", "null"]
+          description: "e.g. movement, combat, economy, turn_structure"
+        priority:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - projectId
+        - title
+        - content
+        - priority
+        - createdAt
+        - updatedAt
+
+    CreateRuleBody:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        category:
+          type: ["string", "null"]
+        priority:
+          type: integer
+      required:
+        - title
+        - content
+
+    UpdateRuleBody:
+      type: object
+      properties:
+        title:
+          type: ["string", "null"]
+        content:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+        priority:
+          type: ["integer", "null"]
+
+    RulesSandboxMessageBody:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    SandboxMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        role:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - projectId
+        - role
+        - content
+        - createdAt
+
+    # ── Simulation ────────────────────────────────────────────────────────
+    SimulationConfig:
+      type: object
+      properties:
+        iterations:
+          type: integer
+          description: Number of Monte Carlo iterations (default 1000)
+        turns:
+          type: integer
+          description: Number of game turns per simulation
+        goldPerTurn:
+          type: number
+          description: Base gold income per turn
+        goldSpendPerTurn:
+          type: number
+          description: Base gold spend per turn
+        incomeVariance:
+          type: number
+          description: Variance factor for income (0-1)
+        spendVariance:
+          type: number
+          description: Variance factor for spending (0-1)
+        startingGold:
+          type: number
+        label:
+          type: ["string", "null"]
+      required:
+        - iterations
+        - turns
+        - goldPerTurn
+        - goldSpendPerTurn
+
+    SimulationResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        label:
+          type: ["string", "null"]
+        config:
+          $ref: "#/components/schemas/SimulationConfig"
+        percentile10:
+          type: number
+        percentile50:
+          type: number
+        percentile90:
+          type: number
+        mean:
+          type: number
+        stdDev:
+          type: number
+        economyHealthScore:
+          type: number
+          description: "0-100 score: >70 balanced, 40-70 unbalanced, <40 broken"
+        turnData:
+          type: array
+          items:
+            $ref: "#/components/schemas/TurnDataPoint"
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - projectId
+        - config
+        - percentile10
+        - percentile50
+        - percentile90
+        - mean
+        - stdDev
+        - economyHealthScore
+        - turnData
+        - createdAt
+
+    TurnDataPoint:
+      type: object
+      properties:
+        turn:
+          type: integer
+        p10:
+          type: number
+        p50:
+          type: number
+        p90:
+          type: number
+        mean:
+          type: number
+      required:
+        - turn
+        - p10
+        - p50
+        - p90
+        - mean
+
+    SimulationRun:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        label:
+          type: ["string", "null"]
+        economyHealthScore:
+          type: number
+        mean:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - projectId
+        - economyHealthScore
+        - mean
+        - createdAt
+
+    # ── Assets ────────────────────────────────────────────────────────────
+    Asset:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        assetType:
+          type: string
+          description: "e.g. card, token, board_tile"
+        entityId:
+          type: ["integer", "null"]
+        description:
+          type: ["string", "null"]
+        flavorText:
+          type: ["string", "null"]
+        imageData:
+          type: ["string", "null"]
+          description: Base64 encoded image or URL
+        imagePrompt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - projectId
+        - name
+        - assetType
+        - createdAt
+
+    CreateAssetBody:
+      type: object
+      properties:
+        name:
+          type: string
+        assetType:
+          type: string
+        entityId:
+          type: ["integer", "null"]
+        description:
+          type: ["string", "null"]
+        flavorText:
+          type: ["string", "null"]
+        imageData:
+          type: ["string", "null"]
+        imagePrompt:
+          type: ["string", "null"]
+      required:
+        - name
+        - assetType
+
+    GenerateCardDescriptionBody:
+      type: object
+      properties:
+        entityId:
+          type: ["integer", "null"]
+        cardName:
+          type: string
+        cardType:
+          type: string
+        context:
+          type: ["string", "null"]
+      required:
+        - cardName
+        - cardType
+
+    GenerateAssetImageBody:
+      type: object
+      properties:
+        prompt:
+          type: string
+        style:
+          type: ["string", "null"]
+          description: "e.g. fantasy illustration, pixel art, watercolor"
+        size:
+          type: string
+          enum: ["1024x1024", "1536x1024", "1024x1536"]
+      required:
+        - prompt
+
+    GeneratedImageResponse:
+      type: object
+      properties:
+        b64_json:
+          type: string
+      required:
+        - b64_json
+
+    # ── Export ────────────────────────────────────────────────────────────
+    TabletopSimulatorExport:
+      type: object
+      properties:
+        objectStates:
+          type: array
+          items:
+            type: object
+        savedAt:
+          type: string
+          format: date-time
+      required:
+        - objectStates
+        - savedAt
+
+    RulebookExport:
+      type: object
+      properties:
+        markdown:
+          type: string
+        title:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+      required:
+        - markdown
+        - title
+        - generatedAt
+
+    # ── Anthropic ─────────────────────────────────────────────────────────
+    AnthropicConversation:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - createdAt
+    AnthropicMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        role:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - conversationId
+        - role
+        - content
+        - createdAt
+    CreateAnthropicConversationBody:
+      type: object
+      properties:
+        title:
+          type: string
+      required:
+        - title
+    SendAnthropicMessageBody:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+    AnthropicConversationWithMessages:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnthropicMessage"
+      required:
+        - id
+        - title
+        - createdAt
+        - messages
+    AnthropicError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    # ── OpenAI ────────────────────────────────────────────────────────────
+    OpenaiConversation:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - createdAt
+    OpenaiMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        role:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - conversationId
+        - role
+        - content
+        - createdAt
+    CreateOpenaiConversationBody:
+      type: object
+      properties:
+        title:
+          type: string
+      required:
+        - title
+    SendOpenaiMessageBody:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+    OpenaiConversationWithMessages:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpenaiMessage"
+      required:
+        - id
+        - title
+        - createdAt
+        - messages
+    GenerateOpenaiImageBody:
+      type: object
+      properties:
+        prompt:
+          type: string
+        size:
+          type: string
+          enum: ["1024x1024", "1536x1024", "1024x1536"]
+      required:
+        - prompt
+    GenerateOpenaiImageResponse:
+      type: object
+      properties:
+        b64_json:
+          type: string
+      required:
+        - b64_json
+    OpenaiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
