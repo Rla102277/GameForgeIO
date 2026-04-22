@@ -11,9 +11,11 @@ import ExportTab from "@/components/export-tab";
 import PlayersTab from "@/components/players-tab";
 import CollaborationTab from "@/components/collaboration-tab";
 import PlaytestTab from "@/components/playtest-tab";
+import ResearchTab from "@/components/research-tab";
 
 const TABS = [
   { id: "overview", label: "Overview" },
+  { id: "research", label: "Research" },
   { id: "ontology", label: "Ontology" },
   { id: "players", label: "Players" },
   { id: "rules", label: "Rules Sandbox" },
@@ -95,6 +97,10 @@ export default function ProjectWorkspace() {
           <div className="flex-1 overflow-y-auto p-6">
             <TabsContent value="overview" className="m-0 outline-none">
               <OverviewTab projectId={projectId} />
+            </TabsContent>
+
+            <TabsContent value="research" className="h-full m-0 data-[state=active]:flex flex-col outline-none">
+              <ResearchTab projectId={projectId} />
             </TabsContent>
 
             <TabsContent value="ontology" className="h-full m-0 data-[state=active]:flex flex-col outline-none">

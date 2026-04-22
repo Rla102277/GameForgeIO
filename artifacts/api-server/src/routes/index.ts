@@ -13,6 +13,7 @@ import playersRouter from "./players";
 import collabTasksRouter from "./collab-tasks";
 import playtestRouter from "./playtest";
 import gameSetupRouter from "./game-setup";
+import researchRouter from "./research";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(playersRouter);
 router.use(collabTasksRouter);
 router.use(playtestRouter);
 router.use(gameSetupRouter);
+router.use(researchRouter);
 
 export default router;
