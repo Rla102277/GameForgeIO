@@ -265,10 +265,10 @@ function AssetCreatorDialog({
             </div>
             <div className="space-y-2">
               <Label>Link to Entity (Optional)</Label>
-              <Select value={formData.entityId} onValueChange={v => setFormData({...formData, entityId: v})}>
+              <Select value={formData.entityId || "none"} onValueChange={v => setFormData({...formData, entityId: v === "none" ? "" : v})}>
                 <SelectTrigger className="bg-input"><SelectValue placeholder="None" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   {entities.map(e => <SelectItem key={e.id} value={e.id.toString()}>{e.name}</SelectItem>)}
                 </SelectContent>
               </Select>

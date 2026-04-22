@@ -14,6 +14,7 @@ import collabTasksRouter from "./collab-tasks";
 import playtestRouter from "./playtest";
 import gameSetupRouter from "./game-setup";
 import researchRouter from "./research";
+import kickstarterRouter from "./kickstarter";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(collabTasksRouter);
 router.use(playtestRouter);
 router.use(gameSetupRouter);
 router.use(researchRouter);
+router.use(kickstarterRouter);
 
 export default router;
