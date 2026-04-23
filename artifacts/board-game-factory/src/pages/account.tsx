@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { useUser } from "@clerk/react";
+import { useUser, useAuth } from "@clerk/react";
 import { useListProjects } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,7 @@ const KEY_HINT_FIELD: Record<string, keyof AccountSettings> = {
 
 export default function AccountPage() {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const { toast } = useToast();
   const { data: projects } = useListProjects();
 
@@ -70,8 +71,20 @@ export default function AccountPage() {
   const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
 
+  async function authFetch(url: string, options: RequestInit = {}) {
+    const token = await getToken();
+    return fetch(url, {
+      ...options,
+      credentials: "include",
+      headers: {
+        ...(options.headers ?? {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  }
+
   useEffect(() => {
-    fetch(`${API}/account/settings`, { credentials: "include" })
+    authFetch(`${API}/account/settings`)
       .then(r => r.json())
       .then((data: AccountSettings) => {
         setSettings(data);
@@ -80,6 +93,7 @@ export default function AccountPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function saveSettings() {
@@ -94,15 +108,14 @@ export default function AccountPage() {
           body[field] = keyInputs[provider];
         }
       }
-      const res = await fetch(`${API}/account/settings`, {
+      const res = await authFetch(`${API}/account/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Save failed");
       toast({ title: "Settings saved", description: "Your AI provider preferences are updated." });
-      const refreshed = await fetch(`${API}/account/settings`, { credentials: "include" }).then(r => r.json());
+      const refreshed = await authFetch(`${API}/account/settings`).then(r => r.json());
       setSettings(refreshed);
       setKeyInputs({});
     } catch {
