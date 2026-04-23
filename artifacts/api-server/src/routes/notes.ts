@@ -90,4 +90,99 @@ Vary the colors. Make each idea distinct and useful.`;
   }
 });
 
+// Per-note: suggest specific rule changes based on a note
+router.post("/projects/:projectId/notes/:noteId/suggest-rule-changes", async (req, res): Promise<void> => {
+  const projectId = parseInt(req.params.projectId, 10);
+  const noteId = parseInt(req.params.noteId, 10);
+  if (isNaN(projectId) || isNaN(noteId)) { res.status(400).json({ error: "Invalid IDs" }); return; }
+
+  const [note] = await db.select().from(notesTable).where(and(eq(notesTable.id, noteId), eq(notesTable.projectId, projectId)));
+  if (!note) { res.status(404).json({ error: "Note not found" }); return; }
+
+  const [project, rules, entities] = await Promise.all([
+    db.select().from(projectsTable).where(eq(projectsTable.id, projectId)).then(r => r[0]),
+    db.select({ id: rulesTable.id, title: rulesTable.title, content: rulesTable.content, category: rulesTable.category }).from(rulesTable).where(eq(rulesTable.projectId, projectId)),
+    db.select({ name: entitiesTable.name, type: entitiesTable.type }).from(entitiesTable).where(eq(entitiesTable.projectId, projectId)).limit(15),
+  ]);
+
+  const prompt = `You are a board game design advisor.
+
+Game: "${project?.name}" (${project?.genre || "strategy"})
+Entities: ${entities.map(e => `${e.name} (${e.type})`).join(", ") || "none"}
+
+Current rules:
+${rules.map(r => `[id:${r.id}] "${r.title}" (${r.category}): ${r.content}`).join("\n") || "none yet"}
+
+Design note to implement:
+Title: "${note.title}"
+Content: "${note.content}"
+
+Based on this note, suggest 1-4 specific rule changes or new rules to implement this idea. Prefer updating existing rules over creating new ones.
+
+Return ONLY a JSON array (no markdown):
+[
+  {"type":"update","ruleId":<number>,"ruleTitle":"<current title>","proposedTitle":"<new title or same>","currentContent":"<current text>","proposedContent":"<improved rule text>","rationale":"<one sentence>","category":"<category>"},
+  {"type":"create","ruleTitle":"<new rule title>","proposedContent":"<full rule text>","rationale":"<one sentence>","category":"movement|combat|economy|turn_structure|variant"}
+]`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5", max_tokens: 1200,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const text = response.content[0].type === "text" ? response.content[0].text.trim() : "[]";
+    const match = text.match(/\[[\s\S]*\]/);
+    res.json({ changes: match ? JSON.parse(match[0]) : [] });
+  } catch {
+    res.status(500).json({ error: "Suggest rule changes failed" });
+  }
+});
+
+// Global: suggest comprehensive rule changes based on ALL notes
+router.post("/projects/:projectId/notes/suggest-global-changes", async (req, res): Promise<void> => {
+  const projectId = parseInt(req.params.projectId, 10);
+  if (isNaN(projectId)) { res.status(400).json({ error: "Invalid project ID" }); return; }
+
+  const [project, notes, rules, entities] = await Promise.all([
+    db.select().from(projectsTable).where(eq(projectsTable.id, projectId)).then(r => r[0]),
+    db.select().from(notesTable).where(eq(notesTable.projectId, projectId)).orderBy(desc(notesTable.pinned)),
+    db.select({ id: rulesTable.id, title: rulesTable.title, content: rulesTable.content, category: rulesTable.category }).from(rulesTable).where(eq(rulesTable.projectId, projectId)),
+    db.select({ name: entitiesTable.name, type: entitiesTable.type }).from(entitiesTable).where(eq(entitiesTable.projectId, projectId)).limit(15),
+  ]);
+
+  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+  if (notes.length === 0) { res.json({ changes: [] }); return; }
+
+  const prompt = `You are a board game design advisor doing a comprehensive rules review.
+
+Game: "${project.name}" (${project.genre || "strategy"})
+Entities: ${entities.map(e => `${e.name} (${e.type})`).join(", ") || "none"}
+
+All design notes (${notes.length} total):
+${notes.map(n => `- "${n.title || "(untitled)"}: ${n.content}"`).join("\n")}
+
+Current rules (${rules.length} total):
+${rules.map(r => `[id:${r.id}] "${r.title}" (${r.category}): ${r.content}`).join("\n") || "none yet"}
+
+Based on ALL design notes, suggest 3-8 comprehensive rule changes. Look for themes repeated across notes, gaps in the ruleset, and rules that need updating to match the design direction.
+
+Return ONLY a JSON array (no markdown):
+[
+  {"type":"update","ruleId":<number>,"ruleTitle":"<current title>","proposedTitle":"<new title or same>","currentContent":"<current text>","proposedContent":"<improved text>","rationale":"<one sentence connecting to notes>","category":"<category>"},
+  {"type":"create","ruleTitle":"<new rule title>","proposedContent":"<full rule text>","rationale":"<one sentence>","category":"movement|combat|economy|turn_structure|variant"}
+]`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5", max_tokens: 2000,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const text = response.content[0].type === "text" ? response.content[0].text.trim() : "[]";
+    const match = text.match(/\[[\s\S]*\]/);
+    res.json({ changes: match ? JSON.parse(match[0]) : [] });
+  } catch {
+    res.status(500).json({ error: "Suggest global changes failed" });
+  }
+});
+
 export default router;
