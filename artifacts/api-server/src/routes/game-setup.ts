@@ -5,9 +5,8 @@ import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
 const pdfParse = _require("pdf-parse") as (buffer: Buffer) => Promise<{ text: string }>;
 import { db, projectFilesTable, projectsTable, entitiesTable, propertiesTable, rulesTable, playersTable, changeLogTable } from "@workspace/db";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { callAI, streamAI, getUserAIConfig } from "../lib/ai-provider";
 import { sql } from "drizzle-orm";
-import { z } from "zod";
 
 const router: IRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -62,7 +61,6 @@ router.post("/projects/:projectId/files/fetch-url", async (req, res): Promise<vo
   try {
     const response = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
     const html = await response.text();
-    // Strip HTML tags to get readable text
     const text = html
       .replace(/<script[\s\S]*?<\/script>/gi, "")
       .replace(/<style[\s\S]*?<\/style>/gi, "")
@@ -155,23 +153,19 @@ Generate at least 5 entities, 8 rules, and 3 player archetypes. Make them specif
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
-  let fullResponse = "";
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
 
-  const stream = anthropic.messages.stream({
-    model: "claude-sonnet-4-6",
-    max_tokens: 8192,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  for await (const event of stream) {
-    if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-      fullResponse += event.delta.text;
-      res.write(`data: ${JSON.stringify({ content: event.delta.text })}\n\n`);
-    }
+  try {
+    const fullResponse = await streamAI(aiConfig, [{ role: "user", content: prompt }], (text) => {
+      res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+    }, { maxTokens: 8192 });
+    res.write(`data: ${JSON.stringify({ done: true, raw: fullResponse })}\n\n`);
+    res.end();
+  } catch (e) {
+    res.write(`data: ${JSON.stringify({ error: String(e) })}\n\n`);
+    res.end();
   }
-
-  res.write(`data: ${JSON.stringify({ done: true, raw: fullResponse })}\n\n`);
-  res.end();
 });
 
 // Populate DB from AI-generated blueprint
@@ -244,14 +238,12 @@ router.post("/projects/:projectId/populate-from-blueprint", async (req, res): Pr
     }
   }
 
-  // Update project description/overview if provided
   if (blueprint.overview) {
     await db.update(projectsTable).set({
       description: blueprint.overview.summary || undefined,
     }).where(eq(projectsTable.id, projectId));
   }
 
-  // Log to change log
   await db.insert(changeLogTable).values({
     projectId,
     entityType: "project",
@@ -292,13 +284,11 @@ Generate ${count} new game entities as JSON array. Each should be:
 
 Make them fit the game theme. Do NOT duplicate existing entities. Only return the JSON array.`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 3000,
-      messages: [{ role: "user", content: aiPrompt }],
-    });
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const text = await callAI(aiConfig, [{ role: "user", content: aiPrompt }], { maxTokens: 3000 });
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) { res.status(500).json({ error: "Could not parse AI response" }); return; }
     res.json(JSON.parse(jsonMatch[0]));
@@ -333,13 +323,11 @@ Generate ${count} new ${category ? `"${category}"` : ""} rules as JSON array:
 
 Rules should reference the actual entities. Do NOT duplicate existing rules. Only return the JSON array.`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 3000,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 3000 });
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) { res.status(500).json({ error: "Could not parse AI response" }); return; }
     res.json(JSON.parse(jsonMatch[0]));
@@ -388,13 +376,11 @@ Return a JSON object with:
 
 Suggest 2-5 properties that are NOT already defined. Make them mechanically meaningful for a ${entity.type} in a ${project.genre || "board"} game. Only return the JSON object.`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 1500,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 1500 });
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) { res.status(500).json({ error: "Could not parse AI response" }); return; }
     res.json(JSON.parse(jsonMatch[0]));
@@ -427,7 +413,7 @@ router.get("/projects/:projectId/change-log", async (req, res): Promise<void> =>
   res.json(log.reverse());
 });
 
-// NotebookLM source document — publicly readable HTML that NotebookLM can ingest as a URL source
+// NotebookLM source document
 router.get("/projects/:projectId/notebooklm", async (req, res): Promise<void> => {
   const projectId = parseInt(req.params.projectId, 10);
   if (isNaN(projectId)) { res.status(400).send("Invalid project ID"); return; }
@@ -441,7 +427,6 @@ router.get("/projects/:projectId/notebooklm", async (req, res): Promise<void> =>
     db.select().from(playersTable).where(eq(playersTable.projectId, projectId)),
   ]);
 
-  // Load properties for all entities
   const allEntityIds = entities.map(e => e.id);
   const allProperties = allEntityIds.length > 0
     ? await db.select().from(propertiesTable).where(sql`${propertiesTable.entityId} = ANY(${sql`ARRAY[${sql.join(allEntityIds.map(id => sql`${id}`), sql`, `)}]::integer[]`})`)

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, asc, desc } from "drizzle-orm";
 import { db, researchItemsTable, projectsTable, entitiesTable, rulesTable, playersTable } from "@workspace/db";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { callAI, streamAI, getUserAIConfig } from "../lib/ai-provider";
 
 const router: IRouter = Router();
 
@@ -47,7 +47,6 @@ router.post("/projects/:projectId/research-items/fetch-url", async (req, res): P
       signal: AbortSignal.timeout(15000),
     });
     const html = await response.text();
-    // Strip HTML tags for text extraction
     const text = html
       .replace(/<script[\s\S]*?<\/script>/gi, "")
       .replace(/<style[\s\S]*?<\/style>/gi, "")
@@ -150,22 +149,11 @@ ${fetchedContent ? `\n\nFetched content from ${fetchedUrl}:\n---\n${fetchedConte
     { role: "user", content: message },
   ];
 
-  try {
-    let fullText = "";
-    const stream = await anthropic.messages.stream({
-      model: "claude-sonnet-4-5",
-      max_tokens: 2000,
-      system: systemPrompt,
-      messages,
-    });
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
 
-    for await (const chunk of stream) {
-      if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-        const text = chunk.delta.text;
-        fullText += text;
-        send({ content: text });
-      }
-    }
+  try {
+    const fullText = await streamAI(aiConfig, messages, (text) => { send({ content: text }); }, { system: systemPrompt, maxTokens: 2000 });
 
     // Auto-save research if AI suggested it
     const saveMatch = fullText.match(/<save_research>([\s\S]*?)<\/save_research>/);
@@ -238,14 +226,12 @@ ${instruction}
 
 Return ONLY the new description text, nothing else. No quotes, no preamble.`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 300,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const text = response.content[0].type === "text" ? response.content[0].text.trim() : "";
-    res.json({ description: text });
+    const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 300 });
+    res.json({ description: text.trim() });
   } catch {
     res.status(500).json({ error: "AI enhance failed" });
   }
@@ -457,19 +443,13 @@ Generate a complete, detailed JSON blueprint:
 
 Generate at minimum: 8 entities, 12 rules, 3 player archetypes. Draw directly from the research materials.`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
-    let fullText = "";
-    const stream = await anthropic.messages.stream({
-      model: "claude-sonnet-4-5",
-      max_tokens: 6000,
-      messages: [{ role: "user", content: prompt }],
-    });
-    for await (const chunk of stream) {
-      if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-        fullText += chunk.delta.text;
-        send({ content: chunk.delta.text });
-      }
-    }
+    const fullText = await streamAI(aiConfig, [{ role: "user", content: prompt }], (text) => {
+      send({ content: text });
+    }, { maxTokens: 6000 });
     send({ done: true, raw: fullText });
     res.end();
   } catch (e) {

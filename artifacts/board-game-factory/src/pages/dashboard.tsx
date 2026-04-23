@@ -46,7 +46,7 @@ function UserMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="gap-2 cursor-pointer"
-          onClick={() => setLocation("/sign-in")}
+          onClick={() => setLocation("/account")}
         >
           <User className="h-3.5 w-3.5" />
           Account settings

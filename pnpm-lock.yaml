@@ -166,6 +166,9 @@ importers:
 
   artifacts/api-server:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.78.0
+        version: 0.78.0(zod@3.25.76)
       '@clerk/express':
         specifier: ^2.1.5
         version: 2.1.5(express@5.2.1)
@@ -199,6 +202,9 @@ importers:
       multer:
         specifier: ^2.1.1
         version: 2.1.1
+      openai:
+        specifier: ^6.34.0
+        version: 6.34.0(zod@3.25.76)
       pdf-parse:
         specifier: ^2.4.5
         version: 2.4.5
@@ -3531,6 +3537,12 @@ packages:
 
 snapshots:
 
+  '@anthropic-ai/sdk@0.78.0(zod@3.25.76)':
+    dependencies:
+      json-schema-to-ts: 3.1.1
+    optionalDependencies:
+      zod: 3.25.76
+
   '@anthropic-ai/sdk@0.78.0(zod@4.3.6)':
     dependencies:
       json-schema-to-ts: 3.1.1
@@ -5635,6 +5647,10 @@ snapshots:
   once@1.4.0:
     dependencies:
       wrappy: 1.0.2
+
+  openai@6.34.0(zod@3.25.76):
+    optionalDependencies:
+      zod: 3.25.76
 
   openai@6.34.0(zod@4.3.6):
     optionalDependencies:

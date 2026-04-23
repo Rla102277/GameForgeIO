@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, notesTable, projectsTable, entitiesTable, rulesTable } from "@workspace/db";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { callAI, streamAI, getUserAIConfig } from "../lib/ai-provider";
 
 const router: IRouter = Router();
 
@@ -77,13 +77,11 @@ Return ONLY a JSON array, no explanation:
 
 Vary the colors. Make each idea distinct and useful.`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 1200,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const text = response.content[0].type === "text" ? response.content[0].text.trim() : "[]";
+    const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 1200 });
     const match = text.match(/\[[\s\S]*\]/);
     const ideas = match ? JSON.parse(match[0]) : [];
     res.json({ ideas });
@@ -112,12 +110,11 @@ Return ONLY a JSON array (no markdown):
 
 Use only the exact topic IDs listed above. Assign every note.`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5", max_tokens: 800,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const text = response.content[0].type === "text" ? response.content[0].text.trim() : "[]";
+    const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 800 });
     const match = text.match(/\[[\s\S]*\]/);
     const assignments = match ? JSON.parse(match[0]) : [];
     res.json({ assignments });
@@ -161,22 +158,16 @@ You are a thoughtful, concise design partner. Help the designer refine mechanics
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
-  try {
-    const stream = anthropic.messages.stream({
-      model: "claude-sonnet-4-5",
-      max_tokens: 2048,
-      system: systemPrompt,
-      messages,
-    });
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
 
-    for await (const chunk of stream) {
-      if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-        res.write(`data: ${JSON.stringify({ text: chunk.delta.text })}\n\n`);
-      }
-    }
+  try {
+    await streamAI(aiConfig, messages, (text) => {
+      res.write(`data: ${JSON.stringify({ text })}\n\n`);
+    }, { system: systemPrompt, maxTokens: 2048 });
     res.write("data: [DONE]\n\n");
     res.end();
-  } catch (err) {
+  } catch {
     res.write(`data: ${JSON.stringify({ error: "Chat failed" })}\n\n`);
     res.end();
   }
@@ -217,12 +208,11 @@ Return ONLY a JSON array (no markdown):
   {"type":"create","ruleTitle":"<new rule title>","proposedContent":"<full rule text>","rationale":"<one sentence>","category":"movement|combat|economy|turn_structure|variant"}
 ]`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5", max_tokens: 1200,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const text = response.content[0].type === "text" ? response.content[0].text.trim() : "[]";
+    const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 1200 });
     const match = text.match(/\[[\s\S]*\]/);
     res.json({ changes: match ? JSON.parse(match[0]) : [] });
   } catch {
@@ -264,12 +254,11 @@ Return ONLY a JSON array (no markdown):
   {"type":"create","ruleTitle":"<new rule title>","proposedContent":"<full rule text>","rationale":"<one sentence>","category":"movement|combat|economy|turn_structure|variant"}
 ]`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5", max_tokens: 2000,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const text = response.content[0].type === "text" ? response.content[0].text.trim() : "[]";
+    const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 2000 });
     const match = text.match(/\[[\s\S]*\]/);
     res.json({ changes: match ? JSON.parse(match[0]) : [] });
   } catch {

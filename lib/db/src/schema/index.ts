@@ -16,3 +16,4 @@ export * from "./research_items";
 export * from "./playtest_feedback";
 export * from "./notes";
 export * from "./storyboard_nodes";
+export * from "./user_settings";

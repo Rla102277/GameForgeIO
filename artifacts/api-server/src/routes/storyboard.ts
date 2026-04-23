@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, asc } from "drizzle-orm";
 import { db, storyboardNodesTable, projectsTable, rulesTable } from "@workspace/db";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { callAI, getUserAIConfig } from "../lib/ai-provider";
 
 const router: IRouter = Router();
 
@@ -81,13 +81,11 @@ Return ONLY a JSON array:
   ...
 ]`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 800,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const text = response.content[0].type === "text" ? response.content[0].text.trim() : "[]";
+    const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 800 });
     const match = text.match(/\[[\s\S]*\]/);
     const suggestions = match ? JSON.parse(match[0]) : [];
     res.json({ suggestions });

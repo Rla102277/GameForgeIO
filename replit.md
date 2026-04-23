@@ -43,6 +43,23 @@ A professional dark-mode developer tool platform for board game designers. Build
 - **`lib/integrations-anthropic-ai`** — Anthropic AI client
 - **`lib/integrations-openai-ai-server`** — OpenAI client + image generation
 
+## Multi-Provider AI System
+
+- **`artifacts/api-server/src/lib/ai-provider.ts`** — Unified AI provider abstraction
+  - `getUserAIConfig(userId)` — Loads user's preferred provider/model/key from DB; falls back to ANTHROPIC_API_KEY env var
+  - `streamAI(config, messages, onChunk, options)` — Universal streaming (Anthropic SDK natively; Gemini/xAI/OpenAI via OpenAI SDK with baseURL)
+  - `callAI(config, messages, options)` — Non-streaming AI call
+  - Supported providers: anthropic (claude-haiku-4-5, sonnet-4-6, opus-4-7), gemini (2.0-flash, 2.5-pro), openai (gpt-4o-mini, gpt-4o), xai (grok-3-mini, grok-3)
+- All AI routes updated to use `getUserAIConfig + streamAI/callAI` (game-setup, rules, players, notes, analysis, research, storyboard, kickstarter, overview-chat)
+- **`lib/db/src/schema/user_settings.ts`** — `user_settings` table (userId, provider, model, 4 API key fields)
+
+## Account Page
+
+- Route: `/account` (protected, requires sign-in)
+- Profile header (Clerk user info, project count)
+- AI Provider cards: 4 providers with model selector and API key input
+- GET/PUT `/api/account/settings` — reads/writes user's AI preferences
+
 ## Key Design Decisions
 
 - Dark mode enforced via `class="dark"` on `<html>` element (Tailwind v4 `@custom-variant dark`)

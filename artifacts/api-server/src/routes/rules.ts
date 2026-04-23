@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, asc } from "drizzle-orm";
 import { db, rulesTable, entitiesTable, propertiesTable, sandboxMessagesTable } from "@workspace/db";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { callAI, streamAI, getUserAIConfig } from "../lib/ai-provider";
 import {
   ListRulesParams,
   CreateRuleParams,
@@ -127,13 +127,11 @@ Return ONLY this JSON (no markdown, no explanation):
   ]
 }`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 1000,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const text = response.content[0].type === "text" ? response.content[0].text : "{}";
+    const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 1000 });
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) { res.status(500).json({ error: "Could not parse response" }); return; }
     res.json(JSON.parse(match[0]));
@@ -212,27 +210,23 @@ Be specific, reference the actual entities and rules by name. Be concise but tho
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
-  let fullResponse = "";
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
 
-  const stream = anthropic.messages.stream({
-    model: "claude-sonnet-4-6",
-    max_tokens: 8192,
-    system: systemPrompt,
-    messages: chatMessages,
-  });
+  try {
+    const fullResponse = await streamAI(aiConfig, chatMessages, (text) => {
+      res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+    }, { system: systemPrompt, maxTokens: 8192 });
 
-  for await (const event of stream) {
-    if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-      fullResponse += event.delta.text;
-      res.write(`data: ${JSON.stringify({ content: event.delta.text })}\n\n`);
-    }
+    // Save assistant response
+    await db.insert(sandboxMessagesTable).values({ projectId, role: "assistant", content: fullResponse });
+
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+  } catch (e) {
+    res.write(`data: ${JSON.stringify({ error: String(e) })}\n\n`);
+    res.end();
   }
-
-  // Save assistant response
-  await db.insert(sandboxMessagesTable).values({ projectId, role: "assistant", content: fullResponse });
-
-  res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-  res.end();
 });
 
 router.get("/projects/:projectId/rules-sandbox/history", async (req, res): Promise<void> => {

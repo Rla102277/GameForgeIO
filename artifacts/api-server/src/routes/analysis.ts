@@ -4,7 +4,7 @@ import {
   db, projectsTable, entitiesTable, propertiesTable, rulesTable,
   playersTable, changeLogTable, playtestFeedbackTable,
 } from "@workspace/db";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { callAI, streamAI, getUserAIConfig } from "../lib/ai-provider";
 
 const router: IRouter = Router();
 
@@ -127,13 +127,11 @@ Find all issues and return JSON:
 
 Only return the JSON. Look for: direct contradictions, ambiguous timing, missing edge cases, undefined terms, circular dependencies.`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 1500,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const text = response.content[0].type === "text" ? response.content[0].text : "{}";
+    const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 1500 });
     const clean = text.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
     res.json(JSON.parse(clean));
   } catch {
@@ -180,15 +178,15 @@ Generate JSON:
 
 Use actual game details throughout. Return ONLY the JSON.`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
     let fullText = "";
-    const stream = await anthropic.messages.stream({ model: "claude-sonnet-4-5", max_tokens: 3000, messages: [{ role: "user", content: prompt }] });
-    for await (const chunk of stream) {
-      if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-        fullText += chunk.delta.text;
-        send({ content: chunk.delta.text });
-      }
-    }
+    await streamAI(aiConfig, [{ role: "user", content: prompt }], (text) => {
+      fullText += text;
+      send({ content: text });
+    }, { maxTokens: 3000 });
     try {
       const clean = fullText.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
       send({ done: true, pressKit: JSON.parse(clean) });
@@ -236,15 +234,15 @@ JSON output:
 
 Return ONLY the JSON.`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
     let fullText = "";
-    const stream = await anthropic.messages.stream({ model: "claude-haiku-4-5", max_tokens: 1500, messages: [{ role: "user", content: prompt }] });
-    for await (const chunk of stream) {
-      if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-        fullText += chunk.delta.text;
-        send({ content: chunk.delta.text });
-      }
-    }
+    await streamAI(aiConfig, [{ role: "user", content: prompt }], (text) => {
+      fullText += text;
+      send({ content: text });
+    }, { maxTokens: 1500 });
     try {
       const clean = fullText.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
       send({ done: true, pitch: JSON.parse(clean) });
@@ -354,15 +352,13 @@ After the final turn, write:
 Winner: [name and why]
 **Post-game analysis:** What worked, what felt unbalanced, what was fun`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
-    const stream = await anthropic.messages.stream({
-      model: "claude-sonnet-4-5", max_tokens: 3000,
-      messages: [{ role: "user", content: prompt }],
-    });
-    for await (const chunk of stream) {
-      if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta")
-        send({ content: chunk.delta.text });
-    }
+    await streamAI(aiConfig, [{ role: "user", content: prompt }], (text) => {
+      send({ content: text });
+    }, { maxTokens: 3000 });
     send({ done: true });
     res.end();
   } catch (e) { send({ error: String(e) }); res.end(); }

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, asc } from "drizzle-orm";
 import { db, playersTable, entitiesTable, propertiesTable, rulesTable } from "@workspace/db";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { callAI, getUserAIConfig } from "../lib/ai-provider";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -100,18 +100,16 @@ Return a JSON array of ${count} player archetypes. Each must have:
 
 Only return the JSON array, nothing else.`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 2048,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 2048 });
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) { res.status(500).json({ error: "Could not parse AI response" }); return; }
     const players = JSON.parse(jsonMatch[0]);
     res.json(players);
-  } catch (e) {
+  } catch {
     res.status(500).json({ error: "AI generation failed" });
   }
 });
@@ -155,13 +153,11 @@ Generate improved, specific, and compelling content for this player archetype. R
   "startingResources": { "resource_name": value }
 }`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 800,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const text = response.content[0].type === "text" ? response.content[0].text : "{}";
+    const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 800 });
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) { res.status(500).json({ error: "Could not parse AI response" }); return; }
     res.json(JSON.parse(match[0]));

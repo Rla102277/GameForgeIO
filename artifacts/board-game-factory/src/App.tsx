@@ -10,6 +10,7 @@ import Dashboard from "@/pages/dashboard";
 import ProjectWorkspace from "@/pages/project-workspace";
 import FeedbackPage from "@/pages/feedback-page";
 import ChangelogPage from "@/pages/changelog";
+import AccountPage from "@/pages/account";
 
 const queryClient = new QueryClient();
 
@@ -114,6 +115,19 @@ function ProtectedWorkspace() {
   );
 }
 
+function ProtectedAccount() {
+  return (
+    <>
+      <Show when="signed-in">
+        <AccountPage />
+      </Show>
+      <Show when="signed-out">
+        <Redirect to="/sign-in" />
+      </Show>
+    </>
+  );
+}
+
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const qc = useQueryClient();
@@ -170,6 +184,7 @@ function AppRoutes() {
             <Route path="/projects/:id" component={ProtectedWorkspace} />
             <Route path="/feedback/:id" component={FeedbackPage} />
             <Route path="/changelog" component={ChangelogPage} />
+            <Route path="/account" component={ProtectedAccount} />
             <Route component={NotFound} />
           </Switch>
           <Toaster />

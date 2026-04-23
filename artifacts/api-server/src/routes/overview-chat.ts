@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, asc } from "drizzle-orm";
 import { db, projectsTable, entitiesTable, rulesTable, playersTable, notesTable } from "@workspace/db";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { streamAI, getUserAIConfig } from "../lib/ai-provider";
 
 const router: IRouter = Router();
 
@@ -52,18 +52,11 @@ You're here to help the designer think through their game. Answer questions, sug
     { role: "user", content: message },
   ];
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
-    const stream = await anthropic.messages.stream({
-      model: "claude-sonnet-4-5",
-      max_tokens: 1200,
-      system: systemPrompt,
-      messages,
-    });
-    for await (const chunk of stream) {
-      if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-        send({ content: chunk.delta.text });
-      }
-    }
+    await streamAI(aiConfig, messages, (text) => { send({ content: text }); }, { system: systemPrompt, maxTokens: 1200 });
     send({ done: true });
     res.end();
   } catch (e) {

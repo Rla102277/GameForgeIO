@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, asc } from "drizzle-orm";
 import { db, projectsTable, entitiesTable, rulesTable, playersTable, assetsTable } from "@workspace/db";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { streamAI, getUserAIConfig } from "../lib/ai-provider";
 
 const router: IRouter = Router();
 
@@ -77,22 +77,16 @@ Rules:
 
 Return ONLY the JSON, no markdown wrapping.`;
 
+  const userId = (req as any).auth?.userId as string | undefined;
+  const aiConfig = await getUserAIConfig(userId);
+
   try {
     let fullText = "";
-    const stream = await anthropic.messages.stream({
-      model: "claude-sonnet-4-5",
-      max_tokens: 4000,
-      messages: [{ role: "user", content: prompt }],
-    });
+    await streamAI(aiConfig, [{ role: "user", content: prompt }], (text) => {
+      fullText += text;
+      send({ content: text });
+    }, { maxTokens: 4000 });
 
-    for await (const chunk of stream) {
-      if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
-        fullText += chunk.delta.text;
-        send({ content: chunk.delta.text });
-      }
-    }
-
-    // Parse and send structured result
     try {
       const clean = fullText.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
       const campaign = JSON.parse(clean);

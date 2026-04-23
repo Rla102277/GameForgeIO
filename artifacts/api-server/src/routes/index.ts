@@ -19,6 +19,7 @@ import analysisRouter from "./analysis";
 import notesRouter from "./notes";
 import storyboardRouter from "./storyboard";
 import overviewChatRouter from "./overview-chat";
+import accountRouter from "./account";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(analysisRouter);
 router.use(notesRouter);
 router.use(storyboardRouter);
 router.use(overviewChatRouter);
+router.use(accountRouter);
 
 export default router;
