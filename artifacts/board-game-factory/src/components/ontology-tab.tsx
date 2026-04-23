@@ -16,7 +16,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   Plus, Trash2, ChevronDown, ChevronRight, Settings,
   Sparkles, Loader2, Check, BookOpen, Wand2, X,
-  Info, Lightbulb, Layers, GitBranch,
+  Info, Lightbulb, Layers, GitBranch, Pencil, Copy, RefreshCw,
 } from "lucide-react";
 import EntityMap from "./entity-map";
 
@@ -529,14 +529,15 @@ export default function OntologyTab({ projectId }: { projectId: number }) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Entity Card with AI Enhance
+// Entity Card with AI Enhance + inline editing
 // ════════════════════════════════════════════════════════════════════════════
-function EntityCard({ entity, projectId, isExpanded, onToggle, onDelete }: {
+function EntityCard({ entity, projectId, isExpanded, onToggle, onDelete, onUpdated }: {
   entity: { id: number; name: string; type: string; description?: string | null };
   projectId: number;
   isExpanded: boolean;
   onToggle: () => void;
   onDelete: () => void;
+  onUpdated?: () => void;
 }) {
   const queryClient = useQueryClient();
   const [showEnhance, setShowEnhance] = useState(false);
@@ -545,9 +546,29 @@ function EntityCard({ entity, projectId, isExpanded, onToggle, onDelete }: {
   const [selectedProps, setSelectedProps] = useState<Set<number>>(new Set());
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ name: entity.name, type: entity.type, description: entity.description ?? "" });
 
   const BASE = `${window.location.origin}/api`;
   const doc = ENTITY_DOCS[entity.type as EntityType];
+
+  const handleSaveEdit = async () => {
+    await fetch(`${BASE}/projects/${projectId}/entities/${entity.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm),
+    });
+    setIsEditing(false);
+    queryClient.invalidateQueries({ queryKey: getListEntitiesQueryKey(projectId) });
+    onUpdated?.();
+  };
+
+  const handleDuplicate = async () => {
+    await fetch(`${BASE}/projects/${projectId}/entities`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: `${entity.name} (Copy)`, type: entity.type, description: entity.description }),
+    });
+    queryClient.invalidateQueries({ queryKey: getListEntitiesQueryKey(projectId) });
+  };
 
   const handleEnhance = async () => {
     setIsEnhancing(true);
@@ -593,41 +614,92 @@ function EntityCard({ entity, projectId, isExpanded, onToggle, onDelete }: {
 
   return (
     <Card className={`bg-card border-border overflow-hidden transition-shadow hover:shadow-md hover:shadow-black/20`}>
-      {/* Header row */}
-      <div
-        className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/10 transition-colors"
-        onClick={onToggle}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          {isExpanded
-            ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-            : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
-          <span className={`text-base font-semibold ${doc?.color ?? "text-white"}`}>{entity.name}</span>
-          <Badge variant="outline" className={`text-[10px] shrink-0 ${typeBadge(entity.type)}`}>{entity.type}</Badge>
-          {entity.description && (
-            <span className="text-xs text-muted-foreground truncate hidden md:block">{entity.description}</span>
-          )}
+      {/* Header row — or inline edit mode */}
+      {isEditing ? (
+        <div className="px-4 py-3 space-y-3 border-b border-border bg-muted/10">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Input
+              value={editForm.name}
+              onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+              className="bg-input h-8 text-sm font-semibold flex-1 min-w-[140px]"
+              placeholder="Entity name"
+              autoFocus
+            />
+            <Select value={editForm.type} onValueChange={v => setEditForm(f => ({ ...f, type: v }))}>
+              <SelectTrigger className="bg-input h-8 text-xs w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {ENTITY_TYPES.map(t => <SelectItem key={t} value={t}>{ENTITY_DOCS[t].icon} {t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <Textarea
+            value={editForm.description}
+            onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+            placeholder="Description…"
+            className="bg-input text-sm resize-none h-16"
+          />
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleSaveEdit} className="h-7 text-xs bg-primary text-primary-foreground gap-1">
+              <Check className="w-3 h-3" />Save
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { setEditForm({ name: entity.name, type: entity.type, description: entity.description ?? "" }); setIsEditing(false); }}
+              className="h-7 text-xs text-muted-foreground hover:text-white">
+              <X className="w-3 h-3" />
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-1 shrink-0 ml-2" onClick={e => e.stopPropagation()}>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`text-xs h-7 px-2 gap-1 ${showEnhance ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary hover:bg-primary/10"}`}
-            onClick={() => { setShowEnhance(!showEnhance); if (!showEnhance && !enhance) handleEnhance(); }}
-          >
-            <Wand2 className="w-3.5 h-3.5" />
-            AI Enhance
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-            onClick={onDelete}
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
+      ) : (
+        <div
+          className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/10 transition-colors"
+          onClick={onToggle}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            {isExpanded
+              ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+              : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+            <span className={`text-base font-semibold ${doc?.color ?? "text-white"}`}>{entity.name}</span>
+            <Badge variant="outline" className={`text-[10px] shrink-0 ${typeBadge(entity.type)}`}>{entity.type}</Badge>
+            {entity.description && (
+              <span className="text-xs text-muted-foreground truncate hidden md:block">{entity.description}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 shrink-0 ml-2" onClick={e => e.stopPropagation()}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`text-xs h-7 px-2 gap-1 ${showEnhance ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary hover:bg-primary/10"}`}
+              onClick={() => { setShowEnhance(!showEnhance); if (!showEnhance && !enhance) handleEnhance(); }}
+            >
+              <Wand2 className="w-3.5 h-3.5" />
+              AI Enhance
+            </Button>
+            <Button
+              variant="ghost" size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-white hover:bg-muted/20"
+              onClick={() => { setEditForm({ name: entity.name, type: entity.type, description: entity.description ?? "" }); setIsEditing(true); }}
+              title="Edit entity"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              variant="ghost" size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-white hover:bg-muted/20"
+              onClick={handleDuplicate}
+              title="Duplicate entity"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              onClick={onDelete}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* AI Enhance Panel */}
       {showEnhance && (
@@ -757,15 +829,20 @@ function EntityCard({ entity, projectId, isExpanded, onToggle, onDelete }: {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Entity Properties sub-component
+// Entity Properties sub-component — with inline editing
 // ════════════════════════════════════════════════════════════════════════════
+const PROP_TYPES = ["number", "string", "boolean", "enum"];
+
 function EntityProperties({ projectId, entityId }: { projectId: number; entityId: number }) {
   const queryClient = useQueryClient();
   const { data: properties, isLoading } = useListProperties(projectId, entityId, { query: { enabled: !!entityId } });
   const createProperty = useCreateProperty();
   const deleteProperty = useDeleteProperty();
+  const BASE = `${window.location.origin}/api`;
 
   const [newProp, setNewProp] = useState({ name: "", dataType: "number", defaultValue: "" });
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editProp, setEditProp] = useState({ name: "", dataType: "number", defaultValue: "" });
 
   const handleAddProp = (e: React.FormEvent) => {
     e.preventDefault();
@@ -778,40 +855,95 @@ function EntityProperties({ projectId, entityId }: { projectId: number; entityId
     });
   };
 
-  if (isLoading) return <div className="text-sm text-muted-foreground py-1">Loading properties...</div>;
+  const startEdit = (prop: { id: number; name: string; dataType: string; defaultValue?: string | null }) => {
+    setEditingId(prop.id);
+    setEditProp({ name: prop.name, dataType: prop.dataType, defaultValue: prop.defaultValue ?? "" });
+  };
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    await fetch(`${BASE}/projects/${projectId}/entities/${entityId}/properties/${editingId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editProp),
+    });
+    setEditingId(null);
+    queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey(projectId, entityId) });
+  };
+
+  if (isLoading) return <div className="text-sm text-muted-foreground py-1">Loading properties…</div>;
 
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
         <Settings className="w-3.5 h-3.5" /> Properties
+        {properties && properties.length > 0 && (
+          <span className="text-muted-foreground/50 font-normal normal-case tracking-normal ml-1">
+            — click row to edit
+          </span>
+        )}
       </div>
 
       {properties && properties.length > 0 && (
         <div className="rounded-md border border-border overflow-hidden">
           <div className="grid grid-cols-12 gap-3 px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/20 border-b border-border">
-            <div className="col-span-5">Name</div>
+            <div className="col-span-4">Name</div>
             <div className="col-span-3">Type</div>
             <div className="col-span-3">Default</div>
-            <div className="col-span-1" />
+            <div className="col-span-2" />
           </div>
           {properties.map(prop => (
-            <div key={prop.id} className="grid grid-cols-12 gap-3 px-3 py-2 items-center text-sm border-b border-border/40 last:border-0 hover:bg-muted/10">
-              <div className="col-span-5 font-mono text-xs text-white">{prop.name}</div>
-              <div className="col-span-3">
-                <Badge variant="secondary" className="bg-secondary/40 font-mono text-[10px]">{prop.dataType}</Badge>
-              </div>
-              <div className="col-span-3 text-muted-foreground font-mono text-xs">{prop.defaultValue || "—"}</div>
-              <div className="col-span-1 flex justify-end">
-                <Button
-                  variant="ghost" size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                  onClick={() => deleteProperty.mutate({ projectId, entityId, id: prop.id }, {
-                    onSuccess: () => queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey(projectId, entityId) })
-                  })}
+            <div key={prop.id} className="border-b border-border/40 last:border-0">
+              {editingId === prop.id ? (
+                <div className="grid grid-cols-12 gap-2 px-3 py-2 items-center bg-primary/5 border-l-2 border-primary">
+                  <div className="col-span-4">
+                    <Input value={editProp.name} onChange={e => setEditProp(p => ({ ...p, name: e.target.value }))}
+                      className="h-7 text-xs bg-input font-mono" autoFocus />
+                  </div>
+                  <div className="col-span-3">
+                    <Select value={editProp.dataType} onValueChange={v => setEditProp(p => ({ ...p, dataType: v }))}>
+                      <SelectTrigger className="h-7 text-xs bg-input"><SelectValue /></SelectTrigger>
+                      <SelectContent>{PROP_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-3">
+                    <Input value={editProp.defaultValue} onChange={e => setEditProp(p => ({ ...p, defaultValue: e.target.value }))}
+                      className="h-7 text-xs bg-input font-mono" placeholder="default" />
+                  </div>
+                  <div className="col-span-2 flex items-center justify-end gap-1">
+                    <button onClick={saveEdit} className="text-primary hover:text-primary/80 transition-colors p-1">
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => setEditingId(null)} className="text-muted-foreground hover:text-white transition-colors p-1">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="grid grid-cols-12 gap-3 px-3 py-2 items-center text-sm hover:bg-muted/10 cursor-pointer group"
+                  onClick={() => startEdit(prop)}
                 >
-                  <Trash2 className="w-3 h-3" />
-                </Button>
-              </div>
+                  <div className="col-span-4 font-mono text-xs text-white">{prop.name}</div>
+                  <div className="col-span-3">
+                    <Badge variant="secondary" className="bg-secondary/40 font-mono text-[10px]">{prop.dataType}</Badge>
+                  </div>
+                  <div className="col-span-3 text-muted-foreground font-mono text-xs">{prop.defaultValue || "—"}</div>
+                  <div className="col-span-2 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={e => { e.stopPropagation(); startEdit(prop); }}
+                      className="text-muted-foreground hover:text-white transition-colors p-0.5">
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); deleteProperty.mutate({ projectId, entityId, id: prop.id }, {
+                        onSuccess: () => queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey(projectId, entityId) })
+                      }); }}
+                      className="text-muted-foreground hover:text-destructive transition-colors p-0.5"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -831,12 +963,7 @@ function EntityProperties({ projectId, entityId }: { projectId: number; entityId
           <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Type</Label>
           <Select value={newProp.dataType} onValueChange={v => setNewProp({ ...newProp, dataType: v })}>
             <SelectTrigger className="h-8 text-xs bg-input"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="number">number</SelectItem>
-              <SelectItem value="string">string</SelectItem>
-              <SelectItem value="boolean">boolean</SelectItem>
-              <SelectItem value="enum">enum</SelectItem>
-            </SelectContent>
+            <SelectContent>{PROP_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="w-32 space-y-1">

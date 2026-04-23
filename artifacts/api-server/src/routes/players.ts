@@ -116,4 +116,58 @@ Only return the JSON array, nothing else.`;
   }
 });
 
+// AI enhance a single player archetype
+router.post("/projects/:projectId/players/:id/ai-enhance", async (req, res): Promise<void> => {
+  const projectId = parseInt(req.params.projectId, 10);
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(projectId) || isNaN(id)) { res.status(400).json({ error: "Invalid IDs" }); return; }
+
+  const [player] = await db.select().from(playersTable).where(eq(playersTable.id, id));
+  if (!player) { res.status(404).json({ error: "Player not found" }); return; }
+
+  const entities = await db.select().from(entitiesTable).where(eq(entitiesTable.projectId, projectId));
+  const rules = await db.select().from(rulesTable).where(eq(rulesTable.projectId, projectId)).limit(10);
+  const allPlayers = await db.select({ name: playersTable.name, playstyle: playersTable.playstyle }).from(playersTable).where(eq(playersTable.projectId, projectId));
+
+  const context = `Entities: ${entities.map(e => `${e.name} (${e.type})`).join(", ") || "none"}
+Rules: ${rules.map(r => r.title).join(", ") || "none"}
+Other player archetypes: ${allPlayers.filter(p => p.name !== player.name).map(p => p.name).join(", ") || "none"}`;
+
+  const prompt = `You are a board game designer enhancing a player archetype.
+
+Current player:
+Name: ${player.name}
+Archetype: ${player.archetype || "not set"}
+Playstyle: ${player.playstyle || "not set"}
+Description: ${player.description || "none"}
+Victory Condition: ${player.victoryCondition || "none"}
+Special Ability: ${player.specialAbility || "none"}
+
+Game context:
+${context}
+
+Generate improved, specific, and compelling content for this player archetype. Return ONLY this JSON:
+{
+  "description": "Vivid 2-3 sentence description of this player archetype's personality and approach",
+  "victoryCondition": "Specific, mechanical win condition tied to the game's entities",
+  "specialAbility": "One unique, balanced special ability with clear mechanical effect",
+  "designNotes": "1-2 sentences on how this archetype creates interesting gameplay decisions",
+  "startingResources": { "resource_name": value }
+}`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 800,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const text = response.content[0].type === "text" ? response.content[0].text : "{}";
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) { res.status(500).json({ error: "Could not parse AI response" }); return; }
+    res.json(JSON.parse(match[0]));
+  } catch {
+    res.status(500).json({ error: "AI enhance failed" });
+  }
+});
+
 export default router;
