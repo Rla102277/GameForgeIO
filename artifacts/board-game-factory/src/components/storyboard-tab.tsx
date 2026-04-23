@@ -1,11 +1,11 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Plus, Sparkles, Trash2, Loader2, X, Check, GitBranch,
-  ChevronRight, ChevronDown, Pencil,
+  ChevronRight, ChevronDown, Pencil, MoveRight,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -47,16 +47,38 @@ function NodeCard({ node, allNodes, onCreate, onUpdate, onDelete }: {
   const [content, setContent] = useState(node.content);
   const [suggesting, setSuggesting] = useState(false);
   const [suggestions, setSuggestions] = useState<Partial<Node>[]>([]);
+  const [movingTo, setMovingTo] = useState<string | null>(null);
+  const [showMoveMenu, setShowMoveMenu] = useState(false);
+  const moveMenuRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const BASE = `${window.location.origin}/api`;
 
   const children = allNodes.filter(n => n.parentId === node.id);
   const statusMeta = STATUSES.find(s => s.id === node.status) ?? STATUSES[0];
-  const nextStatus = STATUSES[STATUSES.indexOf(statusMeta) + 1];
+  const otherStatuses = STATUSES.filter(s => s.id !== node.status);
+
+  // Close move menu on outside click
+  useEffect(() => {
+    if (!showMoveMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (moveMenuRef.current && !moveMenuRef.current.contains(e.target as HTMLElement)) {
+        setShowMoveMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showMoveMenu]);
 
   const save = () => {
     onUpdate(node.id, { title, content });
     setEditing(false);
+  };
+
+  const moveToStatus = async (statusId: string) => {
+    setMovingTo(statusId);
+    setShowMoveMenu(false);
+    await onUpdate(node.id, { status: statusId });
+    setMovingTo(null);
   };
 
   const getSuggestions = async () => {
@@ -118,14 +140,32 @@ function NodeCard({ node, allNodes, onCreate, onUpdate, onDelete }: {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-            {nextStatus && (
-              <button onClick={() => onUpdate(node.id, { status: nextStatus.id })}
-                title={`Move to ${nextStatus.label}`}
-                className="text-[10px] text-muted-foreground hover:text-white px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 transition-colors whitespace-nowrap">
-                → {nextStatus.label}
+          <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            {/* Move-to-column picker */}
+            <div className="relative" ref={moveMenuRef}>
+              <button
+                onClick={() => setShowMoveMenu(!showMoveMenu)}
+                title="Move to column"
+                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-white px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 transition-colors whitespace-nowrap"
+              >
+                {movingTo ? <Loader2 className="w-3 h-3 animate-spin" /> : <MoveRight className="w-3 h-3" />}
+                Move
               </button>
-            )}
+              {showMoveMenu && (
+                <div className="absolute right-0 top-full mt-1 z-50 bg-popover border border-border rounded-lg shadow-xl overflow-hidden min-w-[130px]">
+                  {otherStatuses.map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => moveToStatus(s.id)}
+                      className={`w-full text-left px-3 py-2 text-xs transition-colors hover:bg-white/10 flex items-center gap-2 ${s.id === "approved" ? "text-emerald-400" : s.id === "rejected" ? "text-red-400" : s.id === "proposed" ? "text-amber-400" : s.id === "exploring" ? "text-blue-400" : "text-slate-300"}`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.id === "approved" ? "bg-emerald-400" : s.id === "rejected" ? "bg-red-400" : s.id === "proposed" ? "bg-amber-400" : s.id === "exploring" ? "bg-blue-400" : "bg-slate-400"}`} />
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button onClick={() => setEditing(!editing)} className="p-1 text-muted-foreground hover:text-white transition-colors">
               <Pencil className="w-3 h-3" />
             </button>
