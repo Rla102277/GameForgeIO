@@ -90,6 +90,62 @@ Vary the colors. Make each idea distinct and useful.`;
   }
 });
 
+// Streaming chat with full game context (SSE)
+router.post("/projects/:projectId/notes/chat", async (req, res): Promise<void> => {
+  const projectId = parseInt(req.params.projectId, 10);
+  if (isNaN(projectId)) { res.status(400).json({ error: "Invalid project ID" }); return; }
+
+  const { messages = [] } = req.body as { messages: { role: "user" | "assistant"; content: string }[] };
+
+  const [project, notes, rules, entities] = await Promise.all([
+    db.select().from(projectsTable).where(eq(projectsTable.id, projectId)).then(r => r[0]),
+    db.select({ title: notesTable.title, content: notesTable.content, pinned: notesTable.pinned }).from(notesTable).where(eq(notesTable.projectId, projectId)).orderBy(desc(notesTable.pinned)).limit(40),
+    db.select({ title: rulesTable.title, content: rulesTable.content, category: rulesTable.category }).from(rulesTable).where(eq(rulesTable.projectId, projectId)).limit(30),
+    db.select({ name: entitiesTable.name, type: entitiesTable.type, description: entitiesTable.description }).from(entitiesTable).where(eq(entitiesTable.projectId, projectId)).limit(25),
+  ]);
+
+  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+
+  const systemPrompt = `You are a collaborative board game design advisor helping the designer iterate on "${project.name}" (${project.genre || "strategy game"}).
+${project.description ? `\nGame description: ${project.description}` : ""}
+
+== CURRENT DESIGN NOTES (${notes.length}) ==
+${notes.length > 0 ? notes.map(n => `• ${n.pinned ? "[PINNED] " : ""}${n.title ? n.title + ": " : ""}${n.content}`).join("\n") : "No notes yet."}
+
+== RULES (${rules.length}) ==
+${rules.length > 0 ? rules.map(r => `• [${r.category}] ${r.title}: ${r.content}`).join("\n") : "No rules yet."}
+
+== ENTITIES (${entities.length}) ==
+${entities.length > 0 ? entities.map(e => `• ${e.name} (${e.type})${e.description ? ": " + e.description : ""}`).join("\n") : "No entities yet."}
+
+You are a thoughtful, concise design partner. Help the designer refine mechanics, spot problems, explore ideas, and improve the game. When suggesting rule changes, be specific and actionable. Keep responses focused and conversational — avoid overly long walls of text unless the designer asks for depth.`;
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  try {
+    const stream = anthropic.messages.stream({
+      model: "claude-sonnet-4-5",
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages,
+    });
+
+    for await (const chunk of stream) {
+      if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
+        res.write(`data: ${JSON.stringify({ text: chunk.delta.text })}\n\n`);
+      }
+    }
+    res.write("data: [DONE]\n\n");
+    res.end();
+  } catch (err) {
+    res.write(`data: ${JSON.stringify({ error: "Chat failed" })}\n\n`);
+    res.end();
+  }
+});
+
 // Per-note: suggest specific rule changes based on a note
 router.post("/projects/:projectId/notes/:noteId/suggest-rule-changes", async (req, res): Promise<void> => {
   const projectId = parseInt(req.params.projectId, 10);
