@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ChevronDown, LogOut, User, Dices } from "lucide-react";
+import { ChevronDown, LogOut, User, Dices, Zap } from "lucide-react";
 
 function UserMenu() {
   const { user } = useUser();
@@ -28,32 +28,39 @@ function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="flex items-center gap-2 h-9 px-3 text-sm text-slate-300 hover:text-white hover:bg-slate-800">
-          <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white">
+        <Button variant="ghost" className="flex items-center gap-2 h-9 px-3 text-sm text-muted-foreground hover:text-foreground hover:bg-accent">
+          <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground">
             {initials}
           </div>
           <span className="max-w-[140px] truncate hidden sm:block">{displayName}</span>
           <ChevronDown className="h-3.5 w-3.5 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52 bg-slate-900 border-slate-800 text-slate-200">
+      <DropdownMenuContent align="end" className="w-52">
         <div className="px-3 py-2">
-          <p className="text-xs font-medium text-white truncate">{displayName}</p>
+          <p className="text-xs font-medium text-foreground truncate">{displayName}</p>
           {user?.primaryEmailAddress && user.fullName && (
-            <p className="text-xs text-slate-500 truncate">{user.primaryEmailAddress.emailAddress}</p>
+            <p className="text-xs text-muted-foreground truncate">{user.primaryEmailAddress.emailAddress}</p>
           )}
         </div>
-        <DropdownMenuSeparator className="bg-slate-800" />
+        <DropdownMenuSeparator />
         <DropdownMenuItem
-          className="gap-2 text-slate-300 focus:text-white focus:bg-slate-800 cursor-pointer"
+          className="gap-2 cursor-pointer"
           onClick={() => setLocation("/sign-in")}
         >
           <User className="h-3.5 w-3.5" />
           Account settings
         </DropdownMenuItem>
-        <DropdownMenuSeparator className="bg-slate-800" />
         <DropdownMenuItem
-          className="gap-2 text-red-400 focus:text-red-300 focus:bg-red-500/10 cursor-pointer"
+          className="gap-2 cursor-pointer"
+          onClick={() => setLocation("/changelog")}
+        >
+          <Zap className="h-3.5 w-3.5" />
+          Change Log
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="gap-2 text-destructive focus:text-destructive cursor-pointer"
           onClick={() => signOut(() => setLocation("/"))}
         >
           <LogOut className="h-3.5 w-3.5" />
@@ -95,8 +102,8 @@ function ProjectsContent() {
   if (!projects?.length) {
     return (
       <div className="text-center py-20 bg-card rounded-xl border border-border">
-        <Dices className="h-12 w-12 text-blue-500 mx-auto mb-4 opacity-70" />
-        <h3 className="text-xl font-medium text-white mb-2">No projects yet</h3>
+        <Dices className="h-12 w-12 text-primary mx-auto mb-4 opacity-70" />
+        <h3 className="text-xl font-medium text-foreground mb-2">No projects yet</h3>
         <p className="text-muted-foreground mb-6">Create your first board game project to get started.</p>
         <Button onClick={() => setIsDialogOpen(true)}>Create Project</Button>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -191,19 +198,19 @@ function LandingContent() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4">
-      <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-blue-600/20 border border-blue-500/30 mb-6">
-        <Dices className="h-10 w-10 text-blue-400" />
+      <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-primary/10 border border-primary/20 mb-6">
+        <Dices className="h-10 w-10 text-primary" />
       </div>
-      <h2 className="text-4xl font-bold text-white mb-4 tracking-tight">
+      <h2 className="text-4xl font-bold text-foreground mb-4 tracking-tight">
         Design Better Games, Faster
       </h2>
-      <p className="text-slate-400 max-w-md mb-8 text-lg leading-relaxed">
+      <p className="text-muted-foreground max-w-md mb-8 text-lg leading-relaxed">
         AI-powered tools for board game designers. Balance mechanics, simulate playthroughs, and export professional sell sheets — all in one place.
       </p>
       <div className="flex gap-3">
         <Button
           size="lg"
-          className="bg-blue-600 hover:bg-blue-500 text-white px-8"
+          className="px-8"
           onClick={() => setLocation("/sign-up")}
         >
           Get started free
@@ -211,7 +218,6 @@ function LandingContent() {
         <Button
           size="lg"
           variant="outline"
-          className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
           onClick={() => setLocation("/sign-in")}
         >
           Sign in
@@ -223,10 +229,10 @@ function LandingContent() {
           { icon: "🎲", title: "AI Playthrough", desc: "Simulate full playthroughs and spot design flaws before print." },
           { icon: "📄", title: "Publisher Exports", desc: "Generate sell sheets, press kits, and print-ready assets." },
         ].map(f => (
-          <div key={f.title} className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+          <div key={f.title} className="bg-card border border-border rounded-xl p-5">
             <div className="text-2xl mb-2">{f.icon}</div>
-            <h3 className="font-semibold text-white mb-1">{f.title}</h3>
-            <p className="text-sm text-slate-500">{f.desc}</p>
+            <h3 className="font-semibold text-foreground mb-1">{f.title}</h3>
+            <p className="text-sm text-muted-foreground">{f.desc}</p>
           </div>
         ))}
       </div>
@@ -237,22 +243,28 @@ function LandingContent() {
 export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-8 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <Dices className="h-5 w-5 text-blue-400" />
-            <span className="font-bold text-white tracking-tight">AI Board Game Factory</span>
+            <Dices className="h-5 w-5 text-primary" />
+            <span className="font-bold text-foreground tracking-tight">AI Board Game Factory</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <Link href="/changelog">
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground gap-1.5 text-xs">
+                <Zap className="h-3.5 w-3.5" />
+                Change Log
+              </Button>
+            </Link>
             <Show when="signed-in">
               <UserMenu />
             </Show>
             <Show when="signed-out">
               <Link href="/sign-in">
-                <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">Sign in</Button>
+                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">Sign in</Button>
               </Link>
               <Link href="/sign-up">
-                <Button size="sm" className="bg-blue-600 hover:bg-blue-500 text-white">Get started</Button>
+                <Button size="sm">Get started</Button>
               </Link>
             </Show>
           </div>
@@ -262,7 +274,7 @@ export default function Dashboard() {
       <main className="max-w-6xl mx-auto px-8 py-10 space-y-8">
         <Show when="signed-in">
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">My Projects</h1>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">My Projects</h1>
             <p className="text-muted-foreground mt-0.5 text-sm">Your board game designs.</p>
           </div>
           <ProjectsContent />

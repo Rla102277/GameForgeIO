@@ -9,6 +9,7 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import ProjectWorkspace from "@/pages/project-workspace";
 import FeedbackPage from "@/pages/feedback-page";
+import ChangelogPage from "@/pages/changelog";
 
 const queryClient = new QueryClient();
 
@@ -36,41 +37,41 @@ const clerkAppearance = {
     socialButtonsPlacement: "bottom" as const,
   },
   variables: {
-    colorPrimary: "#3b82f6",
-    colorForeground: "#f8fafc",
-    colorMutedForeground: "#94a3b8",
+    colorPrimary: "#06b6d4",
+    colorForeground: "#e4e4e7",
+    colorMutedForeground: "#71717a",
     colorDanger: "#ef4444",
-    colorBackground: "#0f172a",
-    colorInput: "#1e293b",
-    colorInputForeground: "#f8fafc",
-    colorNeutral: "#334155",
+    colorBackground: "#09090b",
+    colorInput: "#18181b",
+    colorInputForeground: "#e4e4e7",
+    colorNeutral: "#3f3f46",
     fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
-    borderRadius: "0.5rem",
+    borderRadius: "0.375rem",
   },
   elements: {
     rootBox: "w-full",
-    cardBox: "bg-slate-900 border border-slate-800 rounded-2xl w-[440px] max-w-full overflow-hidden shadow-2xl shadow-black/40",
+    cardBox: "bg-zinc-950 border border-zinc-900 rounded-2xl w-[440px] max-w-full overflow-hidden shadow-2xl shadow-black/60",
     card: "!shadow-none !border-0 !bg-transparent !rounded-none",
     footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
     headerTitle: "text-white font-bold",
-    headerSubtitle: "text-slate-400",
-    socialButtonsBlockButtonText: "text-slate-200 font-medium",
-    formFieldLabel: "text-slate-300 font-medium",
-    footerActionLink: "text-blue-400 hover:text-blue-300 font-medium",
-    footerActionText: "text-slate-500",
-    dividerText: "text-slate-500",
-    identityPreviewEditButton: "text-blue-400",
+    headerSubtitle: "text-zinc-500",
+    socialButtonsBlockButtonText: "text-zinc-200 font-medium",
+    formFieldLabel: "text-zinc-400 font-medium",
+    footerActionLink: "text-cyan-400 hover:text-cyan-300 font-medium",
+    footerActionText: "text-zinc-600",
+    dividerText: "text-zinc-600",
+    identityPreviewEditButton: "text-cyan-400",
     formFieldSuccessText: "text-emerald-400",
-    alertText: "text-slate-200",
+    alertText: "text-zinc-200",
     logoBox: "flex justify-center pt-2",
     logoImage: "h-10 w-10",
-    socialButtonsBlockButton: "bg-slate-800 border-slate-700 hover:bg-slate-700 text-white",
-    formButtonPrimary: "bg-blue-500 hover:bg-blue-400 text-white font-semibold",
-    formFieldInput: "bg-slate-800 border-slate-700 text-white",
-    footerAction: "bg-slate-800/50",
-    dividerLine: "bg-slate-700",
+    socialButtonsBlockButton: "bg-zinc-900 border-zinc-800 hover:bg-zinc-800 text-white",
+    formButtonPrimary: "bg-cyan-500 hover:bg-cyan-400 text-black font-semibold",
+    formFieldInput: "bg-zinc-900 border-zinc-800 text-white",
+    footerAction: "bg-zinc-900/50",
+    dividerLine: "bg-zinc-800",
     alert: "bg-red-500/10 border-red-500/30",
-    otpCodeFieldInput: "bg-slate-800 border-slate-700 text-white",
+    otpCodeFieldInput: "bg-zinc-900 border-zinc-800 text-white",
     formFieldRow: "",
     main: "",
   },
@@ -168,6 +169,7 @@ function AppRoutes() {
             <Route path="/sign-up/*?" component={SignUpPage} />
             <Route path="/projects/:id" component={ProtectedWorkspace} />
             <Route path="/feedback/:id" component={FeedbackPage} />
+            <Route path="/changelog" component={ChangelogPage} />
             <Route component={NotFound} />
           </Switch>
           <Toaster />
