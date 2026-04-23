@@ -84,6 +84,64 @@ router.delete("/projects/:projectId/rules/:id", async (req, res): Promise<void> 
   res.sendStatus(204);
 });
 
+// AI enhance a single rule
+router.post("/projects/:projectId/rules/:id/ai-enhance", async (req, res): Promise<void> => {
+  const projectId = parseInt(req.params.projectId, 10);
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(projectId) || isNaN(id)) { res.status(400).json({ error: "Invalid IDs" }); return; }
+
+  const [rule] = await db.select().from(rulesTable).where(and(eq(rulesTable.id, id), eq(rulesTable.projectId, projectId)));
+  if (!rule) { res.status(404).json({ error: "Rule not found" }); return; }
+
+  const [allRules, entities] = await Promise.all([
+    db.select({ id: rulesTable.id, title: rulesTable.title, content: rulesTable.content, category: rulesTable.category })
+      .from(rulesTable).where(eq(rulesTable.projectId, projectId)),
+    db.select({ name: entitiesTable.name, type: entitiesTable.type })
+      .from(entitiesTable).where(eq(entitiesTable.projectId, projectId)).limit(20),
+  ]);
+
+  const otherRules = allRules.filter(r => r.id !== id);
+
+  const prompt = `You are a board game design expert improving a specific rule.
+
+Game context:
+- Entities: ${entities.map(e => `${e.name} (${e.type})`).join(", ") || "none defined"}
+- Other rules in this game: ${otherRules.map(r => r.title).join(", ") || "none"}
+
+Current rule to enhance:
+- Title: "${rule.title}"
+- Category: ${rule.category}
+- Priority: ${rule.priority}
+- Content: "${rule.content}"
+
+Your task: Improve this rule to be clearer, more mechanically precise, and better integrated with the game's design.
+
+Return ONLY this JSON (no markdown, no explanation):
+{
+  "rewrittenContent": "Improved rule text — clearer, more specific, precise language with no ambiguity",
+  "improvedTitle": "Better title if needed, or same title",
+  "designNotes": "1-2 sentences on why these changes improve the rule or how it interacts with the game",
+  "edgeCases": "One sentence identifying the main edge case or loophole to watch for",
+  "relatedRuleSuggestions": [
+    {"title": "Suggested complementary rule", "content": "Brief rule content", "category": "${rule.category}"}
+  ]
+}`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 1000,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const text = response.content[0].type === "text" ? response.content[0].text : "{}";
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) { res.status(500).json({ error: "Could not parse response" }); return; }
+    res.json(JSON.parse(match[0]));
+  } catch {
+    res.status(500).json({ error: "AI enhance failed" });
+  }
+});
+
 // Rules Sandbox — SSE streaming with full project context
 router.post("/projects/:projectId/rules-sandbox", async (req, res): Promise<void> => {
   const params = SendRulesSandboxMessageParams.safeParse(req.params);
