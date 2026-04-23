@@ -158,7 +158,8 @@ function PlayerCard({ player, projectId, onUpdate, onDelete }: {
   const [resources, setResources] = useState<Record<string, number | string>>(player.startingResources ?? {});
   const { toast } = useToast();
   const BASE = `${window.location.origin}/api`;
-  const ps = PLAYSTYLE_META[player.playstyle ?? "Hybrid"] ?? PLAYSTYLE_META.Hybrid;
+  const normalizedPlaystyle = PLAYSTYLES.find(s => s.toLowerCase() === (player.playstyle ?? "").toLowerCase()) ?? "Hybrid";
+  const ps = PLAYSTYLE_META[normalizedPlaystyle] ?? PLAYSTYLE_META.Hybrid;
 
   const handleEdit = async (data: typeof EMPTY_FORM) => {
     const res = await fetch(`${BASE}/projects/${projectId}/players/${player.id}`, {
@@ -239,15 +240,15 @@ function PlayerCard({ player, projectId, onUpdate, onDelete }: {
       <div className="flex items-start justify-between px-5 py-4 cursor-pointer hover:bg-muted/5 transition-colors" onClick={() => setExpanded(!expanded)}>
         <div className="flex items-start gap-4 flex-1 min-w-0">
           <div className={`w-11 h-11 rounded-xl ${ps.bg} border ${ps.border} flex items-center justify-center text-xl shrink-0`}>
-            {PLAYSTYLE_META[player.playstyle ?? "Hybrid"].icon}
+            {ps.icon}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-base font-bold text-white">{player.name}</h3>
               {player.archetype && <Badge variant="outline" className="text-[10px] border-border">{player.archetype}</Badge>}
-              {player.playstyle && (
+              {normalizedPlaystyle && (
                 <Badge variant="outline" className={`text-[10px] ${ps.bg} ${ps.text} ${ps.border}`}>
-                  {player.playstyle}
+                  {normalizedPlaystyle}
                 </Badge>
               )}
             </div>
@@ -433,9 +434,14 @@ export default function PlayersTab({ projectId }: { projectId: number }) {
   const BASE = `${window.location.origin}/api`;
 
   const loadPlayers = async () => {
-    const res = await fetch(`${BASE}/projects/${projectId}/players`);
-    if (res.ok) setPlayers(await res.json());
-    setLoading(false);
+    try {
+      const res = await fetch(`${BASE}/projects/${projectId}/players`);
+      if (res.ok) setPlayers(await res.json());
+    } catch (e) {
+      console.error("Failed to load players:", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { loadPlayers(); }, [projectId]);
