@@ -1,3 +1,4 @@
+import { useState, useCallback, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import { useGetProject, useGetProjectStats } from "@workspace/api-client-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,6 +13,10 @@ import PlayersTab from "@/components/players-tab";
 import CollaborationTab from "@/components/collaboration-tab";
 import PlaytestTab from "@/components/playtest-tab";
 import ResearchTab from "@/components/research-tab";
+import BalanceTab from "@/components/balance-tab";
+import { Search, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -23,13 +28,120 @@ const TABS = [
   { id: "assets", label: "Assets" },
   { id: "playtest", label: "Playtesting" },
   { id: "tasks", label: "Tasks" },
+  { id: "balance", label: "Balance" },
   { id: "export", label: "Export" },
 ];
+
+type SearchResult = { type: string; name: string; description?: string; tab: string };
+
+function GlobalSearch({ projectId, onClose, onNavigate }: { projectId: number; onClose: () => void; onNavigate: (tab: string) => void }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const BASE = `${window.location.origin}/api`;
+
+  const search = useCallback(async (q: string) => {
+    if (q.length < 2) { setResults([]); return; }
+    setLoading(true);
+    const lower = q.toLowerCase();
+    try {
+      const [entitiesRes, rulesRes, playersRes] = await Promise.all([
+        fetch(`${BASE}/projects/${projectId}/entities`),
+        fetch(`${BASE}/projects/${projectId}/rules`),
+        fetch(`${BASE}/projects/${projectId}/players`),
+      ]);
+      const [entities, rules, players] = await Promise.all([
+        entitiesRes.ok ? entitiesRes.json() : [],
+        rulesRes.ok ? rulesRes.json() : [],
+        playersRes.ok ? playersRes.json() : [],
+      ]);
+      const hits: SearchResult[] = [];
+      for (const e of entities) {
+        if (e.name?.toLowerCase().includes(lower) || e.description?.toLowerCase().includes(lower))
+          hits.push({ type: e.type ?? "Entity", name: e.name, description: e.description, tab: "ontology" });
+      }
+      for (const r of rules) {
+        if (r.title?.toLowerCase().includes(lower) || r.content?.toLowerCase().includes(lower))
+          hits.push({ type: "Rule", name: r.title, description: r.content?.slice(0, 120), tab: "rules" });
+      }
+      for (const p of players) {
+        if (p.name?.toLowerCase().includes(lower) || p.description?.toLowerCase().includes(lower))
+          hits.push({ type: "Player", name: p.name, description: p.description, tab: "players" });
+      }
+      setResults(hits.slice(0, 12));
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, BASE]);
+
+  useEffect(() => {
+    const t = setTimeout(() => search(query), 200);
+    return () => clearTimeout(t);
+  }, [query, search]);
+
+  const TYPE_COLOR: Record<string, string> = {
+    Item: "bg-blue-500/20 text-blue-400",
+    Faction: "bg-purple-500/20 text-purple-400",
+    Location: "bg-green-500/20 text-green-400",
+    Event: "bg-amber-500/20 text-amber-400",
+    Rule: "bg-red-500/20 text-red-400",
+    Player: "bg-cyan-500/20 text-cyan-400",
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4" onClick={onClose}>
+      <div className="w-full max-w-xl" onClick={e => e.stopPropagation()}>
+        <div className="bg-card border border-border rounded-xl shadow-2xl overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+            <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+            <Input
+              autoFocus
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search entities, rules, players..."
+              className="border-0 bg-transparent shadow-none focus-visible:ring-0 text-white placeholder:text-muted-foreground/60 h-auto py-0"
+            />
+            <button onClick={onClose} className="text-muted-foreground hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {query.length >= 2 && (
+            <div className="max-h-80 overflow-y-auto">
+              {loading && (
+                <div className="py-6 text-center text-sm text-muted-foreground">Searching...</div>
+              )}
+              {!loading && results.length === 0 && (
+                <div className="py-6 text-center text-sm text-muted-foreground">No results for "{query}"</div>
+              )}
+              {!loading && results.map((r, i) => (
+                <button key={i} className="w-full flex items-start gap-3 px-4 py-3 hover:bg-muted/10 text-left border-b border-border/50 last:border-0"
+                  onClick={() => { onNavigate(r.tab); onClose(); }}>
+                  <Badge variant="outline" className={`text-[10px] h-5 px-1.5 shrink-0 mt-0.5 ${TYPE_COLOR[r.type] ?? "bg-muted text-muted-foreground"}`}>
+                    {r.type}
+                  </Badge>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white">{r.name}</p>
+                    {r.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{r.description}</p>}
+                  </div>
+                  <span className="text-xs text-muted-foreground/50 shrink-0 capitalize">{r.tab}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {query.length < 2 && (
+            <div className="px-4 py-3 text-xs text-muted-foreground/60">Type at least 2 characters to search</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ProjectWorkspace() {
   const params = useParams();
   const projectId = parseInt(params.id || "0", 10);
   const { activeTab, setActiveTab } = useAppStore();
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const { data: project, isLoading } = useGetProject(projectId, {
     query: { enabled: !!projectId }
@@ -38,6 +150,15 @@ export default function ProjectWorkspace() {
   const { data: stats } = useGetProjectStats(projectId, {
     query: { enabled: !!projectId }
   });
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setSearchOpen(true); }
+      if (e.key === "Escape") setSearchOpen(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   if (isLoading) {
     return (
@@ -56,6 +177,14 @@ export default function ProjectWorkspace() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
+      {searchOpen && (
+        <GlobalSearch
+          projectId={projectId}
+          onClose={() => setSearchOpen(false)}
+          onNavigate={(tab) => { setActiveTab(tab); setSearchOpen(false); }}
+        />
+      )}
+
       <header className="border-b border-border bg-card/80 backdrop-blur-sm px-6 py-3 flex items-center justify-between shrink-0 sticky top-0 z-10">
         <div className="flex items-center gap-4">
           <Link href="/" className="text-muted-foreground hover:text-white transition-colors text-sm font-medium">
@@ -76,6 +205,14 @@ export default function ProjectWorkspace() {
             </div>
           </div>
         </div>
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="flex items-center gap-2 px-3 py-1.5 bg-muted/20 hover:bg-muted/30 border border-border rounded-lg text-muted-foreground hover:text-white text-xs transition-colors"
+        >
+          <Search className="w-3.5 h-3.5" />
+          <span>Search</span>
+          <kbd className="ml-1 text-[10px] bg-muted/30 px-1 rounded font-mono">⌘K</kbd>
+        </button>
       </header>
 
       <main className="flex-1 flex flex-col overflow-hidden">
@@ -129,6 +266,10 @@ export default function ProjectWorkspace() {
 
             <TabsContent value="tasks" className="h-full m-0 data-[state=active]:flex flex-col outline-none">
               <CollaborationTab projectId={projectId} />
+            </TabsContent>
+
+            <TabsContent value="balance" className="m-0 outline-none">
+              <BalanceTab projectId={projectId} />
             </TabsContent>
 
             <TabsContent value="export" className="m-0 outline-none">

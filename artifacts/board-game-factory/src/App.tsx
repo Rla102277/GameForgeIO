@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -6,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import ProjectWorkspace from "@/pages/project-workspace";
+import FeedbackPage from "@/pages/feedback-page";
 
 const queryClient = new QueryClient();
 
@@ -14,6 +14,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/projects/:id" component={ProjectWorkspace} />
+      <Route path="/feedback/:id" component={FeedbackPage} />
       <Route component={NotFound} />
     </Switch>
   );

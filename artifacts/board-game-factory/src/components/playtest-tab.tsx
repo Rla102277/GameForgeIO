@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,7 +6,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Trash2, Star, Users, Clock, AlertCircle, CheckCircle, Lightbulb, ClipboardList } from "lucide-react";
+import { Plus, Trash2, Star, Users, Clock, AlertCircle, CheckCircle, Lightbulb, ClipboardList, Link2, Copy, Check, MessageSquare } from "lucide-react";
+
+type FeedbackEntry = {
+  id: number; testerName?: string; overallRating?: number; funRating?: number;
+  balanceRating?: number; clarityRating?: number; whatWorked?: string;
+  whatDidnt?: string; suggestions?: string; wouldPlay?: boolean; createdAt: string;
+};
 
 type PlaytestSession = {
   id: number;
@@ -63,6 +69,8 @@ export default function PlaytestTab({ projectId }: { projectId: number }) {
   const [sessions, setSessions] = useState<PlaytestSession[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState<FeedbackEntry[]>([]);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [newSession, setNewSession] = useState({
     title: "", date: "", playerCount: 4, duration: 60, rating: 3,
     notes: "", issues: [] as string[], positives: [] as string[], suggestions: [] as string[],
@@ -70,12 +78,28 @@ export default function PlaytestTab({ projectId }: { projectId: number }) {
 
   const BASE = `${window.location.origin}/api`;
 
-  const loadSessions = async () => {
+  const feedbackUrl = `${window.location.origin}${import.meta.env.BASE_URL}feedback/${projectId}`.replace(/\/\//g, "/").replace(":/", "://");
+
+  const loadSessions = useCallback(async () => {
     const res = await fetch(`${BASE}/projects/${projectId}/playtest-sessions`);
     if (res.ok) setSessions(await res.json());
-  };
+  }, [BASE, projectId]);
 
-  useState(() => { loadSessions(); });
+  const loadFeedback = useCallback(async () => {
+    const res = await fetch(`${BASE}/projects/${projectId}/playtest-feedback`);
+    if (res.ok) setFeedback(await res.json());
+  }, [BASE, projectId]);
+
+  useEffect(() => { loadSessions(); loadFeedback(); }, [loadSessions, loadFeedback]);
+
+  const handleCopyLink = async () => {
+    try { await navigator.clipboard.writeText(feedbackUrl); } catch {
+      const el = document.createElement("textarea");
+      el.value = feedbackUrl; document.body.appendChild(el); el.select();
+      document.execCommand("copy"); document.body.removeChild(el);
+    }
+    setCopiedLink(true); setTimeout(() => setCopiedLink(false), 2500);
+  };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,14 +111,14 @@ export default function PlaytestTab({ projectId }: { projectId: number }) {
     if (res.ok) {
       setAddOpen(false);
       setNewSession({ title: "", date: "", playerCount: 4, duration: 60, rating: 3, notes: "", issues: [], positives: [], suggestions: [] });
-      loadSessions();
+      await loadSessions();
     }
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this session?")) return;
     await fetch(`${BASE}/projects/${projectId}/playtest-sessions/${id}`, { method: "DELETE" });
-    loadSessions();
+    await loadSessions();
   };
 
   const avgRating = sessions.length > 0 ? sessions.reduce((a, s) => a + (s.rating ?? 0), 0) / sessions.length : 0;
@@ -103,6 +127,65 @@ export default function PlaytestTab({ projectId }: { projectId: number }) {
 
   return (
     <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-20">
+
+      {/* External Feedback Section */}
+      <Card className="bg-card border-border">
+        <CardHeader className="border-b border-border py-3 px-5">
+          <CardTitle className="text-white text-sm font-semibold flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-primary" /> External Feedback Form
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-5 space-y-4">
+          <p className="text-xs text-muted-foreground">Share this link with playtesters to collect structured feedback from outside the app.</p>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 bg-muted/20 border border-border rounded-md px-3 py-2 font-mono text-xs text-muted-foreground truncate">
+              {feedbackUrl}
+            </div>
+            <Button onClick={handleCopyLink} size="sm" variant="outline" className={`shrink-0 transition-colors ${copiedLink ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" : "border-primary/30 text-primary hover:bg-primary/10"}`}>
+              {copiedLink ? <><Check className="w-3.5 h-3.5 mr-1.5" />Copied!</> : <><Copy className="w-3.5 h-3.5 mr-1.5" />Copy Link</>}
+            </Button>
+            <Button size="sm" variant="outline" className="shrink-0 border-border text-muted-foreground hover:text-white" onClick={() => window.open(feedbackUrl, "_blank")}>
+              <Link2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+
+          {feedback.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">{feedback.length} response{feedback.length !== 1 ? "s" : ""} received</p>
+              {feedback.map(f => (
+                <div key={f.id} className="border border-border rounded-xl p-4 space-y-2 bg-muted/5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-white">{f.testerName || "Anonymous"}</span>
+                    {f.overallRating && (
+                      <div className="flex gap-0.5 ml-auto">
+                        {[1,2,3,4,5].map(i => (
+                          <Star key={i} className={`w-3.5 h-3.5 ${i <= (f.overallRating ?? 0) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`} />
+                        ))}
+                      </div>
+                    )}
+                    {f.wouldPlay !== null && f.wouldPlay !== undefined && (
+                      <Badge variant="outline" className={`ml-1 text-[10px] ${f.wouldPlay ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10" : "border-red-500/30 text-red-400 bg-red-500/10"}`}>
+                        {f.wouldPlay ? "Would play again" : "Wouldn't replay"}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    {f.funRating && <div className="text-muted-foreground">Fun: <span className="text-white">{f.funRating}/5</span></div>}
+                    {f.balanceRating && <div className="text-muted-foreground">Balance: <span className="text-white">{f.balanceRating}/5</span></div>}
+                    {f.clarityRating && <div className="text-muted-foreground">Clarity: <span className="text-white">{f.clarityRating}/5</span></div>}
+                  </div>
+                  {f.whatWorked && <p className="text-xs text-emerald-400/80"><span className="font-medium">✓ </span>{f.whatWorked}</p>}
+                  {f.whatDidnt && <p className="text-xs text-red-400/80"><span className="font-medium">✗ </span>{f.whatDidnt}</p>}
+                  {f.suggestions && <p className="text-xs text-amber-400/80"><span className="font-medium">→ </span>{f.suggestions}</p>}
+                  <p className="text-[10px] text-muted-foreground/40">{new Date(f.createdAt).toLocaleString()}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {feedback.length === 0 && <p className="text-xs text-muted-foreground/60 text-center py-2">No feedback submitted yet.</p>}
+        </CardContent>
+      </Card>
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-white">Playtesting Log</h2>

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListEntitiesQueryKey, getListRulesQueryKey, useGetProject, useUpdateProject } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,15 @@ import { Badge } from "@/components/ui/badge";
 import {
   Upload, Link2, Trash2, Sparkles, FileText, Globe, CheckCircle,
   Loader2, ChevronRight, Users, Layers, BookOpen, Wand2, Check,
-  Printer, FlaskConical, ArrowRight,
+  Printer, FlaskConical, ArrowRight, Brain,
 } from "lucide-react";
+
+type ComplexityScore = {
+  overall: number;
+  label: string;
+  breakdown: { rules: number; entities: number; players: number; economy: number };
+  suggestion?: string;
+};
 
 type ProjectFile = { id: number; filename: string; fileType: string; sourceUrl?: string; extractedText?: string; createdAt: string };
 type Blueprint = {
@@ -48,10 +55,18 @@ export default function OverviewTab({ projectId }: { projectId: number }) {
   const [isEnhancing, setIsEnhancing] = useState<string | null>(null);
   const [enhancedPreview, setEnhancedPreview] = useState<string | null>(null);
   const [researchItemCount, setResearchItemCount] = useState(0);
+  const [complexity, setComplexity] = useState<ComplexityScore | null>(null);
+
+  const BASE = `${window.location.origin}/api`;
   const [analyzeSource, setAnalyzeSource] = useState<"files" | "research">("files");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const BASE = `${window.location.origin}/api`;
+  useEffect(() => {
+    fetch(`${BASE}/projects/${projectId}/complexity-score`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setComplexity(d); })
+      .catch(() => {});
+  }, [projectId, BASE]);
 
   const loadFiles = useCallback(async () => {
     const [filesRes, researchRes] = await Promise.all([
@@ -220,6 +235,35 @@ export default function OverviewTab({ projectId }: { projectId: number }) {
             {project?.playerCount && <div><span className="text-muted-foreground text-xs uppercase tracking-wider">Players</span><p className="text-white font-medium mt-1">{project.playerCount}</p></div>}
             {project?.targetDuration && <div><span className="text-muted-foreground text-xs uppercase tracking-wider">Duration</span><p className="text-white font-medium mt-1">{project.targetDuration}</p></div>}
           </div>
+
+          {/* Complexity Score Widget */}
+          {complexity && (
+            <div className="border border-border rounded-xl p-4 bg-muted/5 space-y-3">
+              <div className="flex items-center gap-2">
+                <Brain className="w-4 h-4 text-primary" />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Complexity Score</span>
+                <div className="ml-auto flex items-center gap-2">
+                  <span className={`text-2xl font-bold font-mono ${complexity.overall >= 70 ? "text-red-400" : complexity.overall >= 40 ? "text-amber-400" : "text-emerald-400"}`}>{complexity.overall}</span>
+                  <span className="text-xs text-muted-foreground">/100</span>
+                  <Badge variant="outline" className={`text-[10px] ${complexity.overall >= 70 ? "border-red-500/30 text-red-400 bg-red-500/10" : complexity.overall >= 40 ? "border-amber-500/30 text-amber-400 bg-amber-500/10" : "border-emerald-500/30 text-emerald-400 bg-emerald-500/10"}`}>
+                    {complexity.label}
+                  </Badge>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-xs">
+                {Object.entries(complexity.breakdown).map(([key, val]) => (
+                  <div key={key} className="text-center">
+                    <div className="h-1.5 bg-border rounded-full overflow-hidden mb-1">
+                      <div className="h-full rounded-full bg-primary/60" style={{ width: `${val}%` }} />
+                    </div>
+                    <span className="text-muted-foreground capitalize">{key}</span>
+                    <span className="text-white font-mono ml-1">{val}</span>
+                  </div>
+                ))}
+              </div>
+              {complexity.suggestion && <p className="text-xs text-muted-foreground/70 italic border-l-2 border-border pl-2">{complexity.suggestion}</p>}
+            </div>
+          )}
 
           {/* Description with AI enhance */}
           <div className="space-y-2">

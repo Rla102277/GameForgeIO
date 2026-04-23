@@ -11,6 +11,7 @@ A professional dark-mode developer tool platform for board game designers. Build
 - **`artifacts/api-server`** — Express API server (port 8080, proxy at `/api`)
   - Routes: projects, entities, properties, rules, simulation, assets, export, anthropic, openai
   - New routes: game-setup (file upload + AI blueprint), players (CRUD + AI), collab-tasks (kanban), playtest (sessions)
+  - Analysis routes (analysis.ts): balance-analysis, complexity-score, rules/check-conflicts, press-kit/generate, publisher-pitch/generate, publisher-pitch-print, simulate-playthrough, changelog, playtest-feedback CRUD
   - AI routing: Claude Sonnet 4.6 for blueprint SSE streaming, Claude Haiku 4.5 for entity/rule/player JSON generation
   - OpenAI gpt-image-1 for asset image generation
   - Monte Carlo economic simulation engine
@@ -18,16 +19,18 @@ A professional dark-mode developer tool platform for board game designers. Build
 
 - **`artifacts/board-game-factory`** — React + Vite frontend (dark mode, Tailwind v4 + Shadcn UI)
   - Dashboard: project cards with genre/date metadata
-  - Project Workspace with **9 tabs** (underline-style active indicator):
-    - **Overview**: Game info editor, PDF/TXT file upload, URL fetch, AI Game Architect blueprint generation (SSE)
-    - **Ontology**: Entity builder (Item/Faction/Location/Event) + AI Generate Entities panel (count/prompt → checkable list → add to project)
+  - Project Workspace with **11 tabs** (underline-style active indicator):
+    - **Overview**: Game info editor, Complexity Score widget (0-100 BGG-style), PDF/TXT upload, URL fetch, AI Game Architect blueprint (SSE)
+    - **Research**: Research item CRUD
+    - **Ontology**: Entity builder (Item/Faction/Location/Event) + AI Generate Entities + SVG Relationship Map (radial, auto-detects links from descriptions)
     - **Players**: Player archetype builder + AI Generate Players panel
-    - **Rules Sandbox**: Rules library + AI Generate Rules panel + Anthropic SSE chat
-    - **Simulator**: Monte Carlo economy simulation with Recharts P10/P50/P90 bands
-    - **Assets**: AI card description (SSE) + OpenAI image generation
-    - **Playtesting**: Session log with star rating, positives/issues/suggestions tags
-    - **Tasks**: 4-column Kanban board (Backlog / In Progress / Review / Done)
-    - **Export**: Tabletop Simulator JSON + Markdown rulebook
+    - **Rules Sandbox**: Rules library + Variant/Optional category + AI Generate Rules + Conflict Checker (Anthropic Haiku) + AI chat
+    - **Simulator**: Monte Carlo economy simulation (Recharts P10/P50/P90) + AI Playthrough mode (full turn narrative, SSE)
+    - **Assets**: AI card description (SSE) + OpenAI image generation + Print Sheet (browser print)
+    - **Playtesting**: Session log + External Feedback Link (shareable URL) + Feedback response viewer
+    - **Tasks**: 4-column Kanban board + collapsible Changelog viewer
+    - **Balance**: Entity stat bar charts, rule conflict checker, balance score display
+    - **Export**: Tabletop Simulator JSON + Markdown rulebook + Kickstarter generator + Publisher Sell Sheet + Press Kit generator (BGG desc, box copy, press release, social posts, reviewer pitch)
 
 ### Shared Libraries
 

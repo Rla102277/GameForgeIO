@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { Trash2, Image as ImageIcon, Sparkles, Plus, Loader2 } from "lucide-react";
+import { Trash2, Image as ImageIcon, Sparkles, Plus, Loader2, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function AssetsTab({ projectId }: { projectId: number }) {
@@ -25,16 +25,61 @@ export default function AssetsTab({ projectId }: { projectId: number }) {
           <h2 className="text-xl font-bold text-white">Asset Generator</h2>
           <p className="text-muted-foreground text-sm">Generate cards, tokens, and art assets for your game.</p>
         </div>
-        <AssetCreatorDialog 
-          projectId={projectId} 
-          entities={entities || []} 
-          open={isDialogOpen} 
-          onOpenChange={setIsDialogOpen}
-          onSuccess={() => {
-            setIsDialogOpen(false);
-            refetch();
-          }}
-        />
+        <div className="flex items-center gap-2">
+          {(assets?.length ?? 0) > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-border text-muted-foreground hover:text-white"
+              onClick={() => {
+                const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Print Sheet</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;background:#fff;color:#111}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:20px}
+.card{border:2px solid #222;border-radius:8px;overflow:hidden;page-break-inside:avoid;height:280px;display:flex;flex-direction:column}
+.card-img{height:140px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.card-img img{width:100%;height:100%;object-fit:cover}
+.card-img-placeholder{font-size:32px}
+.card-body{padding:8px;flex:1;display:flex;flex-direction:column}
+.card-type{font-size:8px;text-transform:uppercase;letter-spacing:1px;color:#888;font-weight:bold}
+.card-name{font-size:14px;font-weight:700;margin:2px 0 4px}
+.card-desc{font-size:9px;line-height:1.4;color:#444;flex:1;overflow:hidden}
+.card-flavor{font-size:8px;color:#666;font-style:italic;border-top:1px solid #eee;padding-top:4px;margin-top:4px}
+@media print{body{margin:0}.grid{gap:8px;padding:10px}}
+</style></head><body>
+<div style="text-align:center;padding:10px 0 5px;font-size:12px;font-weight:bold;color:#666">PRINT & PLAY CARD SHEET</div>
+<div class="grid">
+${(assets ?? []).map(a => `<div class="card">
+  <div class="card-img">${a.imageData ? `<img src="data:image/png;base64,${a.imageData}" />` : `<div class="card-img-placeholder">🃏</div>`}</div>
+  <div class="card-body">
+    <div class="card-type">${a.assetType ?? "card"}</div>
+    <div class="card-name">${a.name}</div>
+    <div class="card-desc">${a.description ?? ""}</div>
+    ${a.flavorText ? `<div class="card-flavor">"${a.flavorText}"</div>` : ""}
+  </div>
+</div>`).join("")}
+</div>
+<script>window.onload=()=>window.print();<\/script>
+</body></html>`;
+                const w = window.open("", "_blank");
+                w?.document.write(html);
+                w?.document.close();
+              }}
+            >
+              <Printer className="w-3.5 h-3.5 mr-1.5" />
+              Print Sheet
+            </Button>
+          )}
+          <AssetCreatorDialog
+            projectId={projectId}
+            entities={entities || []}
+            open={isDialogOpen}
+            onOpenChange={setIsDialogOpen}
+            onSuccess={() => {
+              setIsDialogOpen(false);
+              refetch();
+            }}
+          />
+        </div>
       </div>
 
       {assets?.length === 0 ? (

@@ -13,3 +13,4 @@ export * from "./project_files";
 export * from "./playtest_sessions";
 export * from "./change_log";
 export * from "./research_items";
+export * from "./playtest_feedback";

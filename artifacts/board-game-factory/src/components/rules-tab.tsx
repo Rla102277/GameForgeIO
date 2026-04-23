@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, Trash2, Bot, User, Trash, Sparkles, Loader2, Check } from "lucide-react";
+import { Send, Trash2, Bot, User, Trash, Sparkles, Loader2, Check, ShieldAlert, AlertTriangle, Info, CheckCircle } from "lucide-react";
 
 type AIRule = { title: string; content: string; category: string; priority?: number };
 
@@ -25,8 +25,20 @@ export default function RulesTab({ projectId }: { projectId: number }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedRules, setGeneratedRules] = useState<AIRule[]>([]);
   const [selectedRules, setSelectedRules] = useState<Set<number>>(new Set());
+  const [conflictResult, setConflictResult] = useState<{ conflicts: { severity: string; title: string; description: string; resolution: string }[]; summary: string } | null>(null);
+  const [checkingConflicts, setCheckingConflicts] = useState(false);
+  const [showVariants, setShowVariants] = useState(false);
 
   const BASE = `${window.location.origin}/api`;
+
+  const handleCheckConflicts = async () => {
+    setCheckingConflicts(true);
+    setConflictResult(null);
+    try {
+      const res = await fetch(`${BASE}/projects/${projectId}/rules/check-conflicts`, { method: "POST" });
+      if (res.ok) setConflictResult(await res.json());
+    } finally { setCheckingConflicts(false); }
+  };
 
   const handleAIGenerate = async () => {
     setIsGenerating(true);
@@ -86,16 +98,37 @@ export default function RulesTab({ projectId }: { projectId: number }) {
       <div className="w-1/2 flex flex-col h-full overflow-hidden">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-white">Rules Library</h2>
-          <Button
-            onClick={() => setShowAIPanel(!showAIPanel)}
-            variant="outline"
-            size="sm"
-            className="border-primary/30 text-primary hover:bg-primary/10"
-          >
-            <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-            AI Generate
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleCheckConflicts} disabled={checkingConflicts} variant="outline" size="sm" className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10">
+              {checkingConflicts ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldAlert className="w-3.5 h-3.5 mr-1" />}
+              Check Conflicts
+            </Button>
+            <Button onClick={() => setShowAIPanel(!showAIPanel)} variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10">
+              <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+              AI Generate
+            </Button>
+          </div>
         </div>
+
+        {conflictResult && (
+          <Card className="p-4 bg-card border-amber-500/20 border mb-4 shrink-0 space-y-2">
+            <p className="text-xs font-medium text-amber-400 flex items-center gap-1.5"><ShieldAlert className="w-3.5 h-3.5" /> Conflict Analysis</p>
+            <p className="text-xs text-muted-foreground italic">{conflictResult.summary}</p>
+            {conflictResult.conflicts.length === 0 ? (
+              <div className="flex items-center gap-1.5 text-emerald-400 text-xs"><CheckCircle className="w-3.5 h-3.5" /> No conflicts detected</div>
+            ) : conflictResult.conflicts.map((c, i) => (
+              <div key={i} className={`border rounded-lg p-2.5 text-xs space-y-1 ${c.severity === "critical" ? "border-red-500/30 bg-red-500/5" : c.severity === "warning" ? "border-amber-500/30 bg-amber-500/5" : "border-blue-500/30 bg-blue-500/5"}`}>
+                <div className="flex items-center gap-1.5">
+                  <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${c.severity === "critical" ? "text-red-400" : c.severity === "warning" ? "text-amber-400" : "text-blue-400"}`} />
+                  <span className="font-semibold text-white">{c.title}</span>
+                  <Badge variant="outline" className="ml-auto text-[9px] capitalize">{c.severity}</Badge>
+                </div>
+                <p className="text-muted-foreground pl-5">{c.description}</p>
+                <div className="flex items-start gap-1 text-muted-foreground/70 pl-5"><Info className="w-3 h-3 mt-0.5 shrink-0" /><span>Fix: {c.resolution}</span></div>
+              </div>
+            ))}
+          </Card>
+        )}
 
         {showAIPanel && (
           <Card className="p-4 bg-card border-primary/30 border mb-4 shrink-0 space-y-3">
@@ -169,6 +202,7 @@ export default function RulesTab({ projectId }: { projectId: number }) {
                     <SelectItem value="combat">Combat</SelectItem>
                     <SelectItem value="economy">Economy</SelectItem>
                     <SelectItem value="turn_structure">Turn Structure</SelectItem>
+                    <SelectItem value="variant">Variant / Optional</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

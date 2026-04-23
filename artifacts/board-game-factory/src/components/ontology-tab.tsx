@@ -16,8 +16,9 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   Plus, Trash2, ChevronDown, ChevronRight, Settings,
   Sparkles, Loader2, Check, BookOpen, Wand2, X,
-  Info, Lightbulb, Layers,
+  Info, Lightbulb, Layers, GitBranch,
 } from "lucide-react";
+import EntityMap from "./entity-map";
 
 type AIEntity = {
   name: string; type: string; description: string;
@@ -157,6 +158,7 @@ export default function OntologyTab({ projectId }: { projectId: number }) {
 
   const [newEntity, setNewEntity] = useState({ name: "", type: "Item", description: "" });
   const [showGuide, setShowGuide] = useState(false);
+  const [showMap, setShowMap] = useState(false);
   const [activeGuideType, setActiveGuideType] = useState<EntityType>("Item");
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [aiPrompt, setAIPrompt] = useState("");
@@ -242,7 +244,16 @@ export default function OntologyTab({ projectId }: { projectId: number }) {
         </div>
         <div className="flex gap-2">
           <Button
-            onClick={() => { setShowGuide(!showGuide); setShowAIPanel(false); }}
+            onClick={() => { setShowMap(!showMap); setShowGuide(false); setShowAIPanel(false); }}
+            variant="outline"
+            size="sm"
+            className={`border-border ${showMap ? "text-white bg-muted/30 border-primary/30" : "text-muted-foreground"} hover:text-white`}
+          >
+            <GitBranch className="w-4 h-4 mr-1.5" />
+            Relationship Map
+          </Button>
+          <Button
+            onClick={() => { setShowGuide(!showGuide); setShowAIPanel(false); setShowMap(false); }}
             variant="outline"
             size="sm"
             className={`border-border ${showGuide ? "text-white bg-muted/30" : "text-muted-foreground"} hover:text-white`}
@@ -251,7 +262,7 @@ export default function OntologyTab({ projectId }: { projectId: number }) {
             Design Guide
           </Button>
           <Button
-            onClick={() => { setShowAIPanel(!showAIPanel); setShowGuide(false); }}
+            onClick={() => { setShowAIPanel(!showAIPanel); setShowGuide(false); setShowMap(false); }}
             variant="outline"
             size="sm"
             className="border-primary/30 text-primary hover:bg-primary/10"
@@ -261,6 +272,11 @@ export default function OntologyTab({ projectId }: { projectId: number }) {
           </Button>
         </div>
       </div>
+
+      {/* ── Relationship Map ── */}
+      {showMap && (
+        <EntityMap entities={entities || []} />
+      )}
 
       {/* ── Entity Design Guide ── */}
       {showGuide && (

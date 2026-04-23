@@ -15,6 +15,7 @@ import playtestRouter from "./playtest";
 import gameSetupRouter from "./game-setup";
 import researchRouter from "./research";
 import kickstarterRouter from "./kickstarter";
+import analysisRouter from "./analysis";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(playtestRouter);
 router.use(gameSetupRouter);
 router.use(researchRouter);
 router.use(kickstarterRouter);
+router.use(analysisRouter);
 
 export default router;

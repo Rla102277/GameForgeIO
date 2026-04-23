@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,7 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Trash2, GripVertical, Clock, User, AlertTriangle, CheckCircle2, Circle, Timer } from "lucide-react";
+import { Plus, Trash2, GripVertical, Clock, User, AlertTriangle, CheckCircle2, Circle, Timer, History, ChevronDown, ChevronUp } from "lucide-react";
+
+type ChangeEntry = {
+  id: number; entityType: string; action: string; description: string;
+  author?: string; createdAt: string;
+};
 
 type Task = {
   id: number;
@@ -41,6 +46,8 @@ export default function CollaborationTab({ projectId }: { projectId: number }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [dragging, setDragging] = useState<number | null>(null);
+  const [changelog, setChangelog] = useState<ChangeEntry[]>([]);
+  const [showChangelog, setShowChangelog] = useState(false);
   const [newTask, setNewTask] = useState({
     title: "", description: "", status: "todo" as Task["status"],
     priority: "medium" as Task["priority"], assignee: "", category: "Design", dueDate: "",
@@ -48,12 +55,17 @@ export default function CollaborationTab({ projectId }: { projectId: number }) {
 
   const BASE = `${window.location.origin}/api`;
 
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
     const res = await fetch(`${BASE}/projects/${projectId}/tasks`);
     if (res.ok) setTasks(await res.json());
-  };
+  }, [BASE, projectId]);
 
-  useState(() => { loadTasks(); });
+  const loadChangelog = useCallback(async () => {
+    const res = await fetch(`${BASE}/projects/${projectId}/changelog`);
+    if (res.ok) setChangelog(await res.json());
+  }, [BASE, projectId]);
+
+  useEffect(() => { loadTasks(); loadChangelog(); }, [loadTasks, loadChangelog]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,7 +77,7 @@ export default function CollaborationTab({ projectId }: { projectId: number }) {
     if (res.ok) {
       setAddOpen(false);
       setNewTask({ title: "", description: "", status: "todo", priority: "medium", assignee: "", category: "Design", dueDate: "" });
-      loadTasks();
+      await loadTasks();
     }
   };
 
@@ -75,11 +87,13 @@ export default function CollaborationTab({ projectId }: { projectId: number }) {
       body: JSON.stringify({ status }),
     });
     setTasks(prev => prev.map(t => t.id === id ? { ...t, status } : t));
+    await loadChangelog();
   };
 
   const handleDelete = async (id: number) => {
     await fetch(`${BASE}/projects/${projectId}/tasks/${id}`, { method: "DELETE" });
     setTasks(prev => prev.filter(t => t.id !== id));
+    await loadChangelog();
   };
 
   const tasksByStatus = (status: Task["status"]) => tasks.filter(t => t.status === status);
@@ -161,6 +175,39 @@ export default function CollaborationTab({ projectId }: { projectId: number }) {
             </DialogContent>
           </Dialog>
         </div>
+      </div>
+
+      {/* Changelog Section */}
+      <div className="border border-border rounded-xl overflow-hidden">
+        <button
+          className="w-full flex items-center gap-2 px-5 py-3 bg-muted/10 hover:bg-muted/20 text-left"
+          onClick={() => setShowChangelog(!showChangelog)}
+        >
+          <History className="w-4 h-4 text-primary" />
+          <span className="font-semibold text-white text-sm">Changelog</span>
+          <Badge variant="outline" className="ml-1 text-xs text-muted-foreground">{changelog.length}</Badge>
+          {showChangelog ? <ChevronUp className="w-4 h-4 ml-auto text-muted-foreground" /> : <ChevronDown className="w-4 h-4 ml-auto text-muted-foreground" />}
+        </button>
+        {showChangelog && (
+          <div className="max-h-64 overflow-y-auto divide-y divide-border/50">
+            {changelog.length === 0 ? (
+              <div className="py-6 text-center text-sm text-muted-foreground">No changes logged yet. Changes are tracked automatically as you edit the game.</div>
+            ) : changelog.map(c => (
+              <div key={c.id} className="flex items-start gap-3 px-5 py-3 hover:bg-muted/5">
+                <div className="w-2 h-2 rounded-full bg-primary/60 mt-1.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">{c.entityType}</Badge>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-primary/70 border-primary/20 capitalize">{c.action}</Badge>
+                    <span className="text-xs text-muted-foreground">{c.author || "Designer"}</span>
+                    <span className="text-[10px] text-muted-foreground/40 ml-auto">{new Date(c.createdAt).toLocaleString()}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{c.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Kanban Board */}
