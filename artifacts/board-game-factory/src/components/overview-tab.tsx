@@ -10,8 +10,166 @@ import { Badge } from "@/components/ui/badge";
 import {
   Upload, Link2, Trash2, Sparkles, FileText, Globe, CheckCircle,
   Loader2, ChevronRight, Users, Layers, BookOpen, Wand2, Check,
-  Printer, FlaskConical, ArrowRight, Brain,
+  Printer, FlaskConical, ArrowRight, Brain, Bot, User, Send, MessageCircle,
 } from "lucide-react";
+
+type ChatMessage = { role: "user" | "assistant"; content: string };
+
+const QUICK_QUESTIONS = [
+  "What are the biggest design risks in this game?",
+  "How can I improve player interaction?",
+  "What rules might conflict with each other?",
+  "Suggest a unique mechanic based on my entities",
+  "How does the complexity compare to similar games?",
+];
+
+function OverviewChat({ projectId }: { projectId: number }) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [open, setOpen] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+  const BASE = `${window.location.origin}/api`;
+
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  const send = async (text?: string) => {
+    const msg = (text ?? input).trim();
+    if (!msg || isStreaming) return;
+    setInput("");
+    setOpen(true);
+
+    const history = messages.map(m => ({ role: m.role, content: m.content }));
+    setMessages(prev => [...prev, { role: "user", content: msg }, { role: "assistant", content: "" }]);
+    setIsStreaming(true);
+
+    let assistantMsg = "";
+    try {
+      const res = await fetch(`${BASE}/projects/${projectId}/overview/chat`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg, history: history.slice(-10) }),
+      });
+      if (!res.body) throw new Error("No stream");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        for (const line of decoder.decode(value).split("\n")) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const d = JSON.parse(line.slice(6));
+            if (d.content) {
+              assistantMsg += d.content;
+              setMessages(prev => { const n = [...prev]; n[n.length - 1] = { role: "assistant", content: assistantMsg }; return n; });
+            }
+          } catch { /* ignore */ }
+        }
+      }
+    } catch (e) {
+      setMessages(prev => { const n = [...prev]; n[n.length - 1] = { role: "assistant", content: `Error: ${String(e)}` }; return n; });
+    } finally {
+      setIsStreaming(false);
+    }
+  };
+
+  return (
+    <Card className="bg-card border-border border-blue-500/20">
+      <CardHeader
+        className="border-b border-border py-4 px-5 flex-row items-center gap-2 cursor-pointer select-none"
+        onClick={() => setOpen(!open)}
+      >
+        <MessageCircle className="w-4 h-4 text-blue-400" />
+        <div className="flex-1">
+          <CardTitle className="text-white text-base font-semibold">AI Design Advisor</CardTitle>
+          <p className="text-xs text-muted-foreground mt-0.5">Ask anything about your game — rules, balance, mechanics, direction</p>
+        </div>
+        {messages.length > 0 && (
+          <Badge variant="outline" className="text-blue-400 border-blue-500/30 bg-blue-500/10 text-xs">{messages.filter(m => m.role === "assistant").length} replies</Badge>
+        )}
+        <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`} />
+      </CardHeader>
+
+      {open && (
+        <CardContent className="p-0">
+          {/* Quick questions */}
+          {messages.length === 0 && (
+            <div className="px-5 pt-4 pb-3">
+              <p className="text-xs text-muted-foreground mb-2.5 font-medium">Quick questions</p>
+              <div className="flex flex-wrap gap-1.5">
+                {QUICK_QUESTIONS.map((q, i) => (
+                  <button key={i} onClick={() => send(q)}
+                    className="text-xs bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:text-white hover:bg-blue-500/20 rounded-lg px-2.5 py-1.5 transition-colors text-left">
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Messages */}
+          {messages.length > 0 && (
+            <div className="max-h-80 overflow-y-auto px-5 py-4 space-y-4">
+              {messages.map((m, i) => (
+                <div key={i} className={`flex gap-2.5 ${m.role === "user" ? "justify-end" : ""}`}>
+                  {m.role === "assistant" && (
+                    <div className="w-6 h-6 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                      <Bot className="w-3 h-3 text-blue-400" />
+                    </div>
+                  )}
+                  <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
+                    m.role === "user"
+                      ? "bg-primary/80 text-white rounded-tr-sm"
+                      : "bg-slate-800/60 border border-slate-700/50 text-slate-200 rounded-tl-sm"
+                  }`}>
+                    <span className="whitespace-pre-wrap">{m.content}</span>
+                    {isStreaming && i === messages.length - 1 && m.role === "assistant" && m.content.length > 0 && (
+                      <span className="inline-block w-1.5 h-3.5 bg-blue-400/60 animate-pulse ml-0.5 rounded-sm align-middle" />
+                    )}
+                  </div>
+                  {m.role === "user" && (
+                    <div className="w-6 h-6 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center shrink-0 mt-0.5">
+                      <User className="w-3 h-3 text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
+              ))}
+              {isStreaming && messages[messages.length - 1]?.content === "" && (
+                <div className="flex gap-2.5">
+                  <div className="w-6 h-6 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center shrink-0">
+                    <Bot className="w-3 h-3 text-blue-400" />
+                  </div>
+                  <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl rounded-tl-sm px-3.5 py-2.5">
+                    <div className="flex gap-1 items-center h-4">
+                      {[0, 0.15, 0.3].map((d, i) => <div key={i} className="w-1.5 h-1.5 bg-blue-400/50 rounded-full animate-bounce" style={{ animationDelay: `${d}s` }} />)}
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={endRef} />
+            </div>
+          )}
+
+          {/* Input */}
+          <div className="px-5 py-4 border-t border-border flex gap-2">
+            <Input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+              placeholder="Ask about your game design…"
+              className="bg-slate-800/60 border-slate-700 text-sm rounded-xl flex-1"
+              disabled={isStreaming}
+            />
+            <Button onClick={() => send()} disabled={isStreaming || !input.trim()} size="icon"
+              className="bg-blue-600 hover:bg-blue-500 text-white rounded-xl shrink-0">
+              {isStreaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </Button>
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
 
 type ComplexityScore = {
   overall: number;
@@ -536,6 +694,9 @@ export default function OverviewTab({ projectId }: { projectId: number }) {
           )}
         </CardContent>
       </Card>
+
+      {/* ── AI Design Advisor Chat ── */}
+      <OverviewChat projectId={projectId} />
     </div>
   );
 }

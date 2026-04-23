@@ -16,6 +16,9 @@ import gameSetupRouter from "./game-setup";
 import researchRouter from "./research";
 import kickstarterRouter from "./kickstarter";
 import analysisRouter from "./analysis";
+import notesRouter from "./notes";
+import storyboardRouter from "./storyboard";
+import overviewChatRouter from "./overview-chat";
 
 const router: IRouter = Router();
 
@@ -36,5 +39,8 @@ router.use(gameSetupRouter);
 router.use(researchRouter);
 router.use(kickstarterRouter);
 router.use(analysisRouter);
+router.use(notesRouter);
+router.use(storyboardRouter);
+router.use(overviewChatRouter);
 
 export default router;

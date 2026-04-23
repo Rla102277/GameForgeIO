@@ -14,6 +14,8 @@ import CollaborationTab from "@/components/collaboration-tab";
 import PlaytestTab from "@/components/playtest-tab";
 import ResearchTab from "@/components/research-tab";
 import BalanceTab from "@/components/balance-tab";
+import NotesTab from "@/components/notes-tab";
+import StoryboardTab from "@/components/storyboard-tab";
 import { Search, X, LogOut, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +33,8 @@ const TABS = [
   { id: "assets", label: "Assets" },
   { id: "playtest", label: "Playtesting" },
   { id: "tasks", label: "Tasks" },
+  { id: "notes", label: "Notes" },
+  { id: "storyboard", label: "Storyboard" },
   { id: "balance", label: "Balance" },
   { id: "export", label: "Export" },
 ];
@@ -316,6 +320,14 @@ export default function ProjectWorkspace() {
 
             <TabsContent value="tasks" className="h-full m-0 data-[state=active]:flex flex-col outline-none">
               <CollaborationTab projectId={projectId} />
+            </TabsContent>
+
+            <TabsContent value="notes" className="m-0 outline-none">
+              <NotesTab projectId={projectId} />
+            </TabsContent>
+
+            <TabsContent value="storyboard" className="h-full m-0 data-[state=active]:flex flex-col outline-none">
+              <StoryboardTab projectId={projectId} />
             </TabsContent>
 
             <TabsContent value="balance" className="m-0 outline-none">
