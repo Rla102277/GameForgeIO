@@ -26,12 +26,14 @@ router.put("/projects/:projectId/notes/:noteId", async (req, res): Promise<void>
   const projectId = parseInt(req.params.projectId, 10);
   const noteId = parseInt(req.params.noteId, 10);
   if (isNaN(projectId) || isNaN(noteId)) { res.status(400).json({ error: "Invalid IDs" }); return; }
-  const { title, content, color, pinned } = req.body;
+  const { title, content, color, pinned, topic, lookAtLater } = req.body;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (title !== undefined) updates.title = title;
   if (content !== undefined) updates.content = content;
   if (color !== undefined) updates.color = color;
   if (pinned !== undefined) updates.pinned = pinned;
+  if (topic !== undefined) updates.topic = topic;
+  if (lookAtLater !== undefined) updates.lookAtLater = lookAtLater;
   const [note] = await db.update(notesTable).set(updates).where(and(eq(notesTable.id, noteId), eq(notesTable.projectId, projectId))).returning();
   if (!note) { res.status(404).json({ error: "Note not found" }); return; }
   res.json(note);
@@ -87,6 +89,40 @@ Vary the colors. Make each idea distinct and useful.`;
     res.json({ ideas });
   } catch {
     res.status(500).json({ error: "AI brainstorm failed" });
+  }
+});
+
+// AI: auto-assign topics to all notes
+router.post("/projects/:projectId/notes/ai-organize-topics", async (req, res): Promise<void> => {
+  const projectId = parseInt(req.params.projectId, 10);
+  if (isNaN(projectId)) { res.status(400).json({ error: "Invalid project ID" }); return; }
+
+  const notes = await db.select({ id: notesTable.id, title: notesTable.title, content: notesTable.content })
+    .from(notesTable).where(eq(notesTable.projectId, projectId));
+  if (notes.length === 0) { res.json({ assignments: [] }); return; }
+
+  const prompt = `You are a board game design advisor. Categorize each design note into one of these topics:
+core_loop, mechanics, player_experience, economy, theme, balance, accessibility, marketing
+
+Notes to categorize:
+${notes.map(n => `[id:${n.id}] "${n.title || "(untitled)"}: ${n.content}"`).join("\n")}
+
+Return ONLY a JSON array (no markdown):
+[{"noteId": <number>, "topic": "<topic_id>"}, ...]
+
+Use only the exact topic IDs listed above. Assign every note.`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5", max_tokens: 800,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const text = response.content[0].type === "text" ? response.content[0].text.trim() : "[]";
+    const match = text.match(/\[[\s\S]*\]/);
+    const assignments = match ? JSON.parse(match[0]) : [];
+    res.json({ assignments });
+  } catch {
+    res.status(500).json({ error: "AI organize topics failed" });
   }
 });
 

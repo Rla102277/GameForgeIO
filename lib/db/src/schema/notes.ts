@@ -10,6 +10,8 @@ export const notesTable = pgTable("notes", {
   content: text("content").notNull().default(""),
   color: text("color").notNull().default("slate"),
   pinned: boolean("pinned").notNull().default(false),
+  topic: text("topic"),
+  lookAtLater: boolean("look_at_later").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
