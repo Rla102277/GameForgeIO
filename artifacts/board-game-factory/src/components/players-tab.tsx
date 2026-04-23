@@ -44,6 +44,40 @@ const PLAYSTYLE_META: Record<string, { bg: string; text: string; border: string;
   Hybrid:     { bg: "bg-emerald-500/10",text: "text-emerald-400",border: "border-emerald-500/30",icon: "⚡" },
 };
 
+const ARCHETYPES = [
+  "Aggressor",
+  "Builder",
+  "Collector",
+  "Controller",
+  "Defender",
+  "Diplomat",
+  "Explorer",
+  "Hoarder",
+  "Opportunist",
+  "Saboteur",
+  "Speedrunner",
+  "Tactician",
+  "Trader",
+  "Underdog",
+] as const;
+
+const ARCHETYPE_DESCRIPTIONS: Record<string, string> = {
+  Aggressor:   "Wins through direct conflict and elimination",
+  Builder:     "Creates infrastructure and economic engines",
+  Collector:   "Accumulates sets or specific resources",
+  Controller:  "Manipulates board state and other players",
+  Defender:    "Focuses on fortification and attrition",
+  Diplomat:    "Uses alliances and negotiation to advance",
+  Explorer:    "Gains advantage through map or area control",
+  Hoarder:     "Stockpiles resources and plays the long game",
+  Opportunist: "Reacts to others' moves for maximum gain",
+  Saboteur:    "Disrupts opponents' plans to slow them down",
+  Speedrunner: "Races to meet win conditions before others",
+  Tactician:   "Plans several moves ahead with precision",
+  Trader:      "Excels at resource conversion and economy",
+  Underdog:    "Thrives with catch-up mechanics and upsets",
+};
+
 const EMPTY_FORM = { name: "", archetype: "", description: "", victoryCondition: "", specialAbility: "", playstyle: "Hybrid" };
 
 function ResourceEditor({ resources, onChange }: {
@@ -94,8 +128,16 @@ function PlayerForm({ initial, onSubmit, onCancel, submitLabel }: {
   submitLabel: string;
 }) {
   const [form, setForm] = useState(initial);
+  // Determine if the initial archetype is a known preset or custom
+  const isPreset = (v: string) => ARCHETYPES.includes(v as typeof ARCHETYPES[number]);
+  const [archetypeMode, setArchetypeMode] = useState<"preset" | "custom">(
+    initial.archetype === "" || isPreset(initial.archetype) ? "preset" : "custom"
+  );
+
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [key]: e.target.value }));
+
+  const selectedDesc = isPreset(form.archetype) ? ARCHETYPE_DESCRIPTIONS[form.archetype] : null;
 
   return (
     <form onSubmit={e => { e.preventDefault(); onSubmit(form); }} className="space-y-4 pt-2">
@@ -105,8 +147,48 @@ function PlayerForm({ initial, onSubmit, onCancel, submitLabel }: {
           <Input value={form.name} onChange={set("name")} placeholder="e.g. The Conqueror" className="bg-input" autoFocus required />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">Archetype Label</Label>
-          <Input value={form.archetype} onChange={set("archetype")} placeholder="e.g. Aggressor" className="bg-input" />
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">Archetype</Label>
+            <button
+              type="button"
+              onClick={() => {
+                if (archetypeMode === "preset") {
+                  setArchetypeMode("custom");
+                  if (isPreset(form.archetype)) setForm(f => ({ ...f, archetype: "" }));
+                } else {
+                  setArchetypeMode("preset");
+                  setForm(f => ({ ...f, archetype: "" }));
+                }
+              }}
+              className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
+            >
+              {archetypeMode === "preset" ? "Custom…" : "← Presets"}
+            </button>
+          </div>
+          {archetypeMode === "preset" ? (
+            <Select
+              value={form.archetype}
+              onValueChange={v => setForm(f => ({ ...f, archetype: v }))}
+            >
+              <SelectTrigger className="bg-input"><SelectValue placeholder="Select archetype…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">— None —</SelectItem>
+                {ARCHETYPES.map(a => (
+                  <SelectItem key={a} value={a}>{a}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              value={form.archetype}
+              onChange={set("archetype")}
+              placeholder="e.g. The Opportunist"
+              className="bg-input"
+            />
+          )}
+          {selectedDesc && (
+            <p className="text-[10px] text-muted-foreground italic">{selectedDesc}</p>
+          )}
         </div>
       </div>
       <div className="space-y-1">
