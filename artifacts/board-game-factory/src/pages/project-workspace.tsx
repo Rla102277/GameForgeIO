@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { useGetProject, useGetProjectStats } from "@workspace/api-client-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppStore } from "@/lib/store";
@@ -14,9 +14,12 @@ import CollaborationTab from "@/components/collaboration-tab";
 import PlaytestTab from "@/components/playtest-tab";
 import ResearchTab from "@/components/research-tab";
 import BalanceTab from "@/components/balance-tab";
-import { Search, X } from "lucide-react";
+import { Search, X, LogOut, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useUser, useClerk } from "@clerk/react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -33,6 +36,50 @@ const TABS = [
 ];
 
 type SearchResult = { type: string; name: string; description?: string; tab: string };
+
+function WorkspaceUserMenu() {
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const [, setLocation] = useLocation();
+
+  const initials = (user?.fullName || user?.primaryEmailAddress?.emailAddress || "U")
+    .split(/\s|@/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s: string) => s[0].toUpperCase())
+    .join("");
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" className="flex items-center gap-1.5 h-8 px-2 text-slate-400 hover:text-white hover:bg-slate-800">
+          <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white">
+            {initials}
+          </div>
+          <ChevronDown className="h-3 w-3 opacity-60" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48 bg-slate-900 border-slate-800 text-slate-200">
+        {user?.primaryEmailAddress && (
+          <>
+            <div className="px-3 py-2">
+              <p className="text-xs text-white font-medium truncate">{user.fullName || user.primaryEmailAddress.emailAddress}</p>
+              {user.fullName && <p className="text-[11px] text-slate-500 truncate">{user.primaryEmailAddress.emailAddress}</p>}
+            </div>
+            <DropdownMenuSeparator className="bg-slate-800" />
+          </>
+        )}
+        <DropdownMenuItem
+          className="gap-2 text-red-400 focus:text-red-300 focus:bg-red-500/10 cursor-pointer"
+          onClick={() => signOut(() => setLocation("/"))}
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 function GlobalSearch({ projectId, onClose, onNavigate }: { projectId: number; onClose: () => void; onNavigate: (tab: string) => void }) {
   const [query, setQuery] = useState("");
@@ -205,14 +252,17 @@ export default function ProjectWorkspace() {
             </div>
           </div>
         </div>
-        <button
-          onClick={() => setSearchOpen(true)}
-          className="flex items-center gap-2 px-3 py-1.5 bg-muted/20 hover:bg-muted/30 border border-border rounded-lg text-muted-foreground hover:text-white text-xs transition-colors"
-        >
-          <Search className="w-3.5 h-3.5" />
-          <span>Search</span>
-          <kbd className="ml-1 text-[10px] bg-muted/30 px-1 rounded font-mono">⌘K</kbd>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-muted/20 hover:bg-muted/30 border border-border rounded-lg text-muted-foreground hover:text-white text-xs transition-colors"
+          >
+            <Search className="w-3.5 h-3.5" />
+            <span>Search</span>
+            <kbd className="ml-1 text-[10px] bg-muted/30 px-1 rounded font-mono">⌘K</kbd>
+          </button>
+          <WorkspaceUserMenu />
+        </div>
       </header>
 
       <main className="flex-1 flex flex-col overflow-hidden">
