@@ -36,7 +36,9 @@ A professional dark-mode developer tool platform for board game designers. Build
 
 - **`lib/db`** — Drizzle ORM + PostgreSQL schema
   - Core: projects, entities, properties, rules, sandbox_messages, simulations, assets, conversations, messages
-  - New: players, collab_tasks, project_files, playtest_sessions, change_log
+  - New: players, collab_tasks, project_files, playtest_sessions, change_log, research_items, playtest_feedback, notes, storyboard_nodes, user_settings
+  - Latest: `project_chat_messages` (persists design/overview chat), `app_users` (user provisioning with roles)
+  - `projects.for_client` — optional client/studio attribution slug field
 - **`lib/api-spec`** — OpenAPI spec (`openapi.yaml`) with codegen script
 - **`lib/api-client-react`** — Orval-generated React Query hooks
 - **`lib/api-zod`** — Orval-generated Zod validation schemas
@@ -46,12 +48,28 @@ A professional dark-mode developer tool platform for board game designers. Build
 ## Multi-Provider AI System
 
 - **`artifacts/api-server/src/lib/ai-provider.ts`** — Unified AI provider abstraction
-  - `getUserAIConfig(userId)` — Loads user's preferred provider/model/key from DB; falls back to ANTHROPIC_API_KEY env var
+  - `getNarrativeAIConfig()` — Always uses Claude (Anthropic) for narrative/creative tasks (overview chat, storyboard, simulate-playthrough)
+  - `getUserAIConfig(userId)` — Loads user's preferred provider/model/key from DB; falls back to OpenAI via Replit AI Integration
   - `streamAI(config, messages, onChunk, options)` — Universal streaming (Anthropic SDK natively; Gemini/xAI/OpenAI via OpenAI SDK with baseURL)
   - `callAI(config, messages, options)` — Non-streaming AI call
   - Supported providers: anthropic (claude-haiku-4-5, sonnet-4-6, opus-4-7), gemini (2.0-flash, 2.5-pro), openai (gpt-4o-mini, gpt-4o), xai (grok-3-mini, grok-3)
+  - **AI routing rule**: narrative/overview = always Claude; analytical/technical = user's configured provider (default OpenAI)
 - All AI routes updated to use `getUserAIConfig + streamAI/callAI` (game-setup, rules, players, notes, analysis, research, storyboard, kickstarter, overview-chat)
 - **`lib/db/src/schema/user_settings.ts`** — `user_settings` table (userId, provider, model, 4 API key fields)
+
+## Chat Persistence
+
+- Design chat (notes.ts) and Overview chat (overview-tab) messages persisted to `project_chat_messages` table
+- New routes: `GET/POST/DELETE /api/projects/:id/chat/:type/messages` (type: "design" | "overview")
+- Frontend chat-tab and overview-tab load history on mount, support clearing from DB
+- `chat_type` column distinguishes design vs overview conversations
+
+## User Provisioning & Admin
+
+- **`lib/db/src/schema/app_users.ts`** — `app_users` table: clerkId, email, firstName, lastName, role ("user"|"admin"), timestamps
+- User auto-sync middleware in `app.ts`: on every authenticated request, upserts user into `app_users` via Clerk API
+- **Admin page** at `/admin` — User management panel (view all users, toggle admin role, remove users)
+- Admin routes: `GET/PUT/DELETE /api/admin/users` — protected, requires `role === "admin"` in app_users
 
 ## Account Page
 

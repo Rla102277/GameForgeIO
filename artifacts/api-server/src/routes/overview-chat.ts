@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, asc } from "drizzle-orm";
-import { db, projectsTable, entitiesTable, rulesTable, playersTable, notesTable } from "@workspace/db";
-import { streamAI, getUserAIConfig } from "../lib/ai-provider";
+import { db, projectsTable, entitiesTable, rulesTable, playersTable, notesTable, projectChatMessagesTable } from "@workspace/db";
+import { streamAI, getNarrativeAIConfig } from "../lib/ai-provider";
 
 const router: IRouter = Router();
 
@@ -52,11 +52,17 @@ You're here to help the designer think through their game. Answer questions, sug
     { role: "user", content: message },
   ];
 
-  const userId = (req as any).auth?.userId as string | undefined;
-  const aiConfig = await getUserAIConfig(userId);
+  const aiConfig = getNarrativeAIConfig();
+  const userId = (req as any).auth?.userId as string | null ?? null;
 
   try {
-    await streamAI(aiConfig, messages, (text) => { send({ content: text }); }, { system: systemPrompt, maxTokens: 1200 });
+    const fullResponse = await streamAI(aiConfig, messages, (text) => { send({ content: text }); }, { system: systemPrompt, maxTokens: 1200 });
+
+    await db.insert(projectChatMessagesTable).values([
+      { projectId, userId, chatType: "overview", role: "user", content: message },
+      { projectId, userId, chatType: "overview", role: "assistant", content: fullResponse },
+    ]);
+
     send({ done: true });
     res.end();
   } catch (e) {

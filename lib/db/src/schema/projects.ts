@@ -9,6 +9,7 @@ export const projectsTable = pgTable("projects", {
   genre: text("genre"),
   playerCount: text("player_count"),
   targetDuration: text("target_duration"),
+  forClient: text("for_client"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

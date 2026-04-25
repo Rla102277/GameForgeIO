@@ -76,7 +76,7 @@ function ProjectsContent() {
   const { data: projects, isLoading } = useListProjects();
   const createProject = useCreateProject();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [newProject, setNewProject] = useState({ name: "", description: "", genre: "" });
+  const [newProject, setNewProject] = useState({ name: "", description: "", genre: "", forClient: "" });
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,6 +121,10 @@ function ProjectsContent() {
                 <Input id="genre2" value={newProject.genre} onChange={e => setNewProject({ ...newProject, genre: e.target.value })} placeholder="e.g. 4X Space Strategy" className="bg-input border-border" />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="client2">For Client <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
+                <Input id="client2" value={newProject.forClient} onChange={e => setNewProject({ ...newProject, forClient: e.target.value })} placeholder="e.g. Acme Games Studio" className="bg-input border-border" />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="desc2">Description</Label>
                 <Textarea id="desc2" value={newProject.description} onChange={e => setNewProject({ ...newProject, description: e.target.value })} placeholder="Brief description..." className="bg-input border-border" />
               </div>
@@ -155,6 +159,10 @@ function ProjectsContent() {
               <div className="space-y-2">
                 <Label htmlFor="genre">Genre</Label>
                 <Input id="genre" value={newProject.genre} onChange={e => setNewProject({ ...newProject, genre: e.target.value })} placeholder="e.g. 4X Space Strategy" className="bg-input border-border" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="client">For Client <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
+                <Input id="client" value={newProject.forClient} onChange={e => setNewProject({ ...newProject, forClient: e.target.value })} placeholder="e.g. Acme Games Studio" className="bg-input border-border" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>

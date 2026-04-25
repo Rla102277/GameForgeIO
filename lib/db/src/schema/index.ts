@@ -17,3 +17,5 @@ export * from "./playtest_feedback";
 export * from "./notes";
 export * from "./storyboard_nodes";
 export * from "./user_settings";
+export * from "./project_chat_messages";
+export * from "./app_users";

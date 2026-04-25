@@ -4,7 +4,7 @@ import {
   db, projectsTable, entitiesTable, propertiesTable, rulesTable,
   playersTable, changeLogTable, playtestFeedbackTable,
 } from "@workspace/db";
-import { callAI, streamAI, getUserAIConfig } from "../lib/ai-provider";
+import { callAI, streamAI, getUserAIConfig, getNarrativeAIConfig } from "../lib/ai-provider";
 
 const router: IRouter = Router();
 
@@ -352,8 +352,7 @@ After the final turn, write:
 Winner: [name and why]
 **Post-game analysis:** What worked, what felt unbalanced, what was fun`;
 
-  const userId = (req as any).auth?.userId as string | undefined;
-  const aiConfig = await getUserAIConfig(userId);
+  const aiConfig = getNarrativeAIConfig();
 
   try {
     await streamAI(aiConfig, [{ role: "user", content: prompt }], (text) => {

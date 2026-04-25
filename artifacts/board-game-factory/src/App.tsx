@@ -11,6 +11,7 @@ import ProjectWorkspace from "@/pages/project-workspace";
 import FeedbackPage from "@/pages/feedback-page";
 import ChangelogPage from "@/pages/changelog";
 import AccountPage from "@/pages/account";
+import AdminPage from "@/pages/admin";
 
 const queryClient = new QueryClient();
 
@@ -185,6 +186,7 @@ function AppRoutes() {
             <Route path="/feedback/:id" component={FeedbackPage} />
             <Route path="/changelog" component={ChangelogPage} />
             <Route path="/account" component={ProtectedAccount} />
+            <Route path="/admin" component={AdminPage} />
             <Route component={NotFound} />
           </Switch>
           <Toaster />

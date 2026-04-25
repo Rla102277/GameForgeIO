@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { useAuth } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListEntitiesQueryKey, getListRulesQueryKey, useGetProject, useUpdateProject } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,9 @@ const QUICK_QUESTIONS = [
 ];
 
 function OverviewChat({ projectId }: { projectId: number }) {
+  const { getToken } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [open, setOpen] = useState(false);
@@ -32,6 +35,26 @@ function OverviewChat({ projectId }: { projectId: number }) {
   const BASE = `${window.location.origin}/api`;
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await getToken();
+        const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await fetch(`${BASE}/projects/${projectId}/chat/overview/messages`, { credentials: "include", headers });
+        if (res.ok) {
+          const data: { id: number; role: string; content: string }[] = await res.json();
+          if (data.length > 0) {
+            setMessages(data.map(m => ({ role: m.role as "user" | "assistant", content: m.content })));
+            setOpen(true);
+          }
+        }
+      } catch { /* non-fatal */ } finally {
+        setLoadingHistory(false);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
   const send = async (text?: string) => {
     const msg = (text ?? input).trim();

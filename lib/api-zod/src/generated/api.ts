@@ -39,6 +39,7 @@ export const CreateProjectBody = zod.object({
   genre: zod.string().nullish(),
   playerCount: zod.string().nullish(),
   targetDuration: zod.string().nullish(),
+  forClient: zod.string().nullish(),
 });
 
 /**
@@ -113,6 +114,7 @@ export const UpdateProjectBody = zod.object({
   genre: zod.string().nullish(),
   playerCount: zod.string().nullish(),
   targetDuration: zod.string().nullish(),
+  forClient: zod.string().nullish(),
 });
 
 export const UpdateProjectResponse = zod.object({

@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, notesTable, projectsTable, entitiesTable, rulesTable } from "@workspace/db";
 import { callAI, streamAI, getUserAIConfig } from "../lib/ai-provider";
+import { projectChatMessagesTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -158,13 +159,25 @@ You are a thoughtful, concise design partner. Help the designer refine mechanics
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
-  const userId = (req as any).auth?.userId as string | undefined;
+  const userId = (req as any).auth?.userId as string | null ?? null;
   const aiConfig = await getUserAIConfig(userId);
 
   try {
+    let fullResponse = "";
     await streamAI(aiConfig, messages, (text) => {
+      fullResponse += text;
       res.write(`data: ${JSON.stringify({ text })}\n\n`);
     }, { system: systemPrompt, maxTokens: 2048 });
+
+    // Persist the last user message + assistant response
+    const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
+    if (lastUserMsg && fullResponse) {
+      await db.insert(projectChatMessagesTable).values([
+        { projectId, userId, chatType: "design", role: "user", content: lastUserMsg.content },
+        { projectId, userId, chatType: "design", role: "assistant", content: fullResponse },
+      ]);
+    }
+
     res.write("data: [DONE]\n\n");
     res.end();
   } catch {

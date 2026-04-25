@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useAuth } from "@clerk/react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -72,7 +73,9 @@ const STARTERS = [
 ];
 
 export default function ChatTab({ projectId }: { projectId: number }) {
+  const { getToken } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [showScroll, setShowScroll] = useState(false);
@@ -81,6 +84,27 @@ export default function ChatTab({ projectId }: { projectId: number }) {
   const abortRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
   const BASE = `${window.location.origin}/api`;
+
+  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const token = await getToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, [getToken]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const headers = await authHeaders();
+        const res = await fetch(`${BASE}/projects/${projectId}/chat/design/messages`, { credentials: "include", headers });
+        if (res.ok) {
+          const data: { id: number; role: string; content: string }[] = await res.json();
+          setMessages(data.map(m => ({ id: String(m.id), role: m.role as Role, content: m.content })));
+        }
+      } catch { /* non-fatal */ } finally {
+        setLoadingHistory(false);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
   const scrollToBottom = useCallback((smooth = true) => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: smooth ? "smooth" : "instant" });
@@ -177,10 +201,14 @@ export default function ChatTab({ projectId }: { projectId: number }) {
     toast({ title: "Saved as note" });
   };
 
-  const clearChat = () => {
+  const clearChat = async () => {
     if (streaming) { abortRef.current?.abort(); }
     setMessages([]);
     setInput("");
+    try {
+      const headers = await authHeaders();
+      await fetch(`${BASE}/projects/${projectId}/chat/design/messages`, { method: "DELETE", credentials: "include", headers });
+    } catch { /* non-fatal */ }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -214,7 +242,12 @@ export default function ChatTab({ projectId }: { projectId: number }) {
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-5 space-y-5 relative">
-        {messages.length === 0 && (
+        {loadingHistory ? (
+          <div className="flex items-center justify-center h-full gap-2 text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-sm">Loading conversation…</span>
+          </div>
+        ) : messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-6 pb-12">
             <div className="w-14 h-14 rounded-2xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center">
               <Sparkles className="w-7 h-7 text-violet-400" />
