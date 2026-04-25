@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "DooRDMQhoBqVBnyajC69z"
+uri = "file://docs/production-design.md"
+type = "text"
+title = "AI Board Game Factory — Production Design Document"
