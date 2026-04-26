@@ -66,6 +66,75 @@ async function stampInitialMigrationIfNeeded() {
   }
 }
 
+/**
+ * Directly ensures the latest schema changes exist, independent of the
+ * migration journal. This is the safety net for production databases that
+ * were set up via drizzle push and may have skipped migration files due to
+ * timestamp ordering issues in the journal.
+ *
+ * All statements are fully idempotent — safe to run on every startup.
+ */
+async function ensureLatestSchema() {
+  const client = await pool.connect();
+  try {
+    logger.info("Ensuring latest schema (idempotent safety pass)");
+
+    // 0001 — user_settings table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "user_settings" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "user_id" text NOT NULL,
+        "provider" text DEFAULT 'anthropic' NOT NULL,
+        "model" text DEFAULT 'claude-haiku-4-5' NOT NULL,
+        "anthropic_api_key" text,
+        "openai_api_key" text,
+        "gemini_api_key" text,
+        "xai_api_key" text,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+        "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+        CONSTRAINT "user_settings_user_id_unique" UNIQUE("user_id")
+      )
+    `);
+
+    // 0002 — for_client column on projects
+    await client.query(`
+      ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "for_client" text
+    `);
+
+    // 0002 — project_chat_messages table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "project_chat_messages" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "project_id" integer NOT NULL REFERENCES "projects"("id") ON DELETE CASCADE,
+        "user_id" text,
+        "chat_type" text NOT NULL DEFAULT 'design',
+        "role" text NOT NULL,
+        "content" text NOT NULL,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL
+      )
+    `);
+
+    // 0002 — app_users table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "app_users" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "clerk_id" text NOT NULL,
+        "email" text NOT NULL,
+        "first_name" text,
+        "last_name" text,
+        "role" text NOT NULL DEFAULT 'user',
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+        "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+        CONSTRAINT "app_users_clerk_id_unique" UNIQUE("clerk_id")
+      )
+    `);
+
+    logger.info("Latest schema ensured successfully");
+  } finally {
+    client.release();
+  }
+}
+
 async function start() {
   try {
     // __dirname is set by the esbuild banner to the dist/ folder.
@@ -76,6 +145,8 @@ async function start() {
     await stampInitialMigrationIfNeeded();
     await migrate(db, { migrationsFolder });
     logger.info("Database migrations complete");
+    // Safety net: ensure all schema changes are applied regardless of journal state
+    await ensureLatestSchema();
   } catch (err) {
     logger.error({ err }, "Database migration failed");
     process.exit(1);
