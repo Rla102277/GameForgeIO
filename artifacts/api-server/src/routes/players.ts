@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, asc } from "drizzle-orm";
-import { db, playersTable, entitiesTable, propertiesTable, rulesTable } from "@workspace/db";
+import { db, playersTable, entitiesTable, propertiesTable, rulesTable, changeLogTable } from "@workspace/db";
 import { callAI, getUserAIConfig } from "../lib/ai-provider";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
@@ -32,6 +32,14 @@ router.post("/projects/:projectId/players", async (req, res): Promise<void> => {
   const parsed = CreatePlayerBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const [player] = await db.insert(playersTable).values({ ...parsed.data, projectId }).returning();
+  await db.insert(changeLogTable).values({
+    projectId,
+    entityType: "player",
+    entityId: player.id,
+    action: "created",
+    description: `Created player "${player.name}"${player.archetype ? ` — ${player.archetype}` : ""}`,
+    newValue: player,
+  }).catch(() => {});
   res.status(201).json(player);
 });
 
@@ -41,6 +49,7 @@ router.patch("/projects/:projectId/players/:id", async (req, res): Promise<void>
   if (isNaN(projectId) || isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const parsed = UpdatePlayerBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const [before] = await db.select().from(playersTable).where(eq(playersTable.id, id));
   const updateData: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(parsed.data)) {
     if (v !== null && v !== undefined) updateData[k] = v;
@@ -48,14 +57,32 @@ router.patch("/projects/:projectId/players/:id", async (req, res): Promise<void>
   updateData.updatedAt = new Date();
   const [player] = await db.update(playersTable).set(updateData).where(eq(playersTable.id, id)).returning();
   if (!player) { res.status(404).json({ error: "Player not found" }); return; }
+  await db.insert(changeLogTable).values({
+    projectId,
+    entityType: "player",
+    entityId: player.id,
+    action: "updated",
+    description: `Updated player "${player.name}"`,
+    previousValue: before ?? null,
+    newValue: player,
+  }).catch(() => {});
   res.json(player);
 });
 
 router.delete("/projects/:projectId/players/:id", async (req, res): Promise<void> => {
+  const projectId = parseInt(req.params.projectId, 10);
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const [deleted] = await db.delete(playersTable).where(eq(playersTable.id, id)).returning();
   if (!deleted) { res.status(404).json({ error: "Player not found" }); return; }
+  await db.insert(changeLogTable).values({
+    projectId: isNaN(projectId) ? deleted.projectId : projectId,
+    entityType: "player",
+    entityId: deleted.id,
+    action: "deleted",
+    description: `Deleted player "${deleted.name}"${deleted.archetype ? ` — ${deleted.archetype}` : ""}`,
+    previousValue: deleted,
+  }).catch(() => {});
   res.sendStatus(204);
 });
 

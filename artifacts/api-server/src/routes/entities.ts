@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, entitiesTable, propertiesTable } from "@workspace/db";
+import { db, entitiesTable, propertiesTable, changeLogTable } from "@workspace/db";
 import {
   ListEntitiesParams,
   CreateEntityParams,
@@ -35,6 +35,14 @@ router.post("/projects/:projectId/entities", async (req, res): Promise<void> => 
     return;
   }
   const [entity] = await db.insert(entitiesTable).values({ ...parsed.data, projectId: params.data.projectId }).returning();
+  await db.insert(changeLogTable).values({
+    projectId: params.data.projectId,
+    entityType: "entity",
+    entityId: entity.id,
+    action: "created",
+    description: `Created entity "${entity.name}" (${entity.type})`,
+    newValue: entity,
+  }).catch(() => {});
   res.status(201).json(entity);
 });
 
@@ -66,6 +74,9 @@ router.patch("/projects/:projectId/entities/:id", async (req, res): Promise<void
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const [before] = await db.select().from(entitiesTable).where(
+    and(eq(entitiesTable.id, params.data.id), eq(entitiesTable.projectId, params.data.projectId))
+  );
   const updateData: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(parsed.data)) {
     if (v !== null && v !== undefined) updateData[k] = v;
@@ -77,6 +88,15 @@ router.patch("/projects/:projectId/entities/:id", async (req, res): Promise<void
     res.status(404).json({ error: "Entity not found" });
     return;
   }
+  await db.insert(changeLogTable).values({
+    projectId: params.data.projectId,
+    entityType: "entity",
+    entityId: entity.id,
+    action: "updated",
+    description: `Updated entity "${entity.name}"`,
+    previousValue: before ?? null,
+    newValue: entity,
+  }).catch(() => {});
   res.json(entity);
 });
 
@@ -93,6 +113,14 @@ router.delete("/projects/:projectId/entities/:id", async (req, res): Promise<voi
     res.status(404).json({ error: "Entity not found" });
     return;
   }
+  await db.insert(changeLogTable).values({
+    projectId: params.data.projectId,
+    entityType: "entity",
+    entityId: deleted.id,
+    action: "deleted",
+    description: `Deleted entity "${deleted.name}" (${deleted.type})`,
+    previousValue: deleted,
+  }).catch(() => {});
   res.sendStatus(204);
 });
 

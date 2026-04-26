@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, asc } from "drizzle-orm";
-import { db, rulesTable, entitiesTable, propertiesTable, sandboxMessagesTable } from "@workspace/db";
+import { db, rulesTable, entitiesTable, propertiesTable, sandboxMessagesTable, changeLogTable } from "@workspace/db";
 import { callAI, streamAI, getUserAIConfig } from "../lib/ai-provider";
 import {
   ListRulesParams,
@@ -40,6 +40,14 @@ router.post("/projects/:projectId/rules", async (req, res): Promise<void> => {
     return;
   }
   const [rule] = await db.insert(rulesTable).values({ ...parsed.data, projectId: params.data.projectId, priority: parsed.data.priority ?? 0 }).returning();
+  await db.insert(changeLogTable).values({
+    projectId: params.data.projectId,
+    entityType: "rule",
+    entityId: rule.id,
+    action: "created",
+    description: `Created rule "${rule.title}"${rule.category ? ` [${rule.category}]` : ""}`,
+    newValue: rule,
+  }).catch(() => {});
   res.status(201).json(rule);
 });
 
@@ -54,6 +62,9 @@ router.patch("/projects/:projectId/rules/:id", async (req, res): Promise<void> =
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const [before] = await db.select().from(rulesTable).where(
+    and(eq(rulesTable.id, params.data.id), eq(rulesTable.projectId, params.data.projectId))
+  );
   const updateData: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(parsed.data)) {
     if (v !== null && v !== undefined) updateData[k] = v;
@@ -65,6 +76,15 @@ router.patch("/projects/:projectId/rules/:id", async (req, res): Promise<void> =
     res.status(404).json({ error: "Rule not found" });
     return;
   }
+  await db.insert(changeLogTable).values({
+    projectId: params.data.projectId,
+    entityType: "rule",
+    entityId: rule.id,
+    action: "updated",
+    description: `Updated rule "${rule.title}"`,
+    previousValue: before ?? null,
+    newValue: rule,
+  }).catch(() => {});
   res.json(rule);
 });
 
@@ -81,6 +101,14 @@ router.delete("/projects/:projectId/rules/:id", async (req, res): Promise<void> 
     res.status(404).json({ error: "Rule not found" });
     return;
   }
+  await db.insert(changeLogTable).values({
+    projectId: params.data.projectId,
+    entityType: "rule",
+    entityId: deleted.id,
+    action: "deleted",
+    description: `Deleted rule "${deleted.title}"${deleted.category ? ` [${deleted.category}]` : ""}`,
+    previousValue: deleted,
+  }).catch(() => {});
   res.sendStatus(204);
 });
 
