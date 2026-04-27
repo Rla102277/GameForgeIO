@@ -7,6 +7,7 @@ import {
   MessageSquare, RotateCcw, ChevronDown,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { renderMarkdown } from "@/lib/markdown";
 
 type Role = "user" | "assistant";
 type Message = { id: string; role: Role; content: string; savedAsNote?: boolean };
@@ -23,21 +24,20 @@ function UserBubble({ content }: { content: string }) {
   );
 }
 
-function AssistantBubble({ msg, onSaveNote }: { msg: Message; onSaveNote: (id: string, content: string) => void }) {
-  // Render markdown-ish: bold, bullet lists, code
-  const rendered = msg.content
-    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-    .replace(/`([^`]+)`/g, '<code class="bg-white/10 px-1 py-0.5 rounded text-[11px] font-mono">$1</code>');
 
+function AssistantBubble({ msg, onSaveNote }: { msg: Message; onSaveNote: (id: string, content: string) => void }) {
   return (
     <div className="flex justify-start gap-3">
       <div className="w-7 h-7 rounded-full bg-violet-600/30 border border-violet-500/40 flex items-center justify-center shrink-0 mt-1">
         <Sparkles className="w-3.5 h-3.5 text-violet-400" />
       </div>
-      <div className="max-w-[78%] space-y-2">
-        <div className="rounded-2xl rounded-tl-sm bg-slate-800/80 border border-slate-700/60 px-4 py-3 text-sm text-slate-200 leading-relaxed shadow-sm">
+      <div className="max-w-[80%] space-y-2">
+        <div className="rounded-2xl rounded-tl-sm bg-slate-800/80 border border-slate-700/60 px-4 py-3 text-sm shadow-sm">
           {msg.content
-            ? <div dangerouslySetInnerHTML={{ __html: rendered }} className="space-y-1 [&_ul]:pl-4 [&_li]:list-disc [&_li]:my-0.5 [&_strong]:text-white [&_strong]:font-semibold" />
+            ? <div
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                className="[&_strong]:text-white [&_strong]:font-semibold [&_em]:text-slate-300 [&_a]:text-cyan-400 [&_a]:underline"
+              />
             : <span className="flex items-center gap-1.5 text-muted-foreground text-xs">
                 <Loader2 className="w-3 h-3 animate-spin" /> Thinking…
               </span>

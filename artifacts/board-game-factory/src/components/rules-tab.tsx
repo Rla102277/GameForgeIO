@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { renderMarkdown } from "@/lib/markdown";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListRules, useCreateRule, useDeleteRule,
@@ -712,8 +713,16 @@ function SandboxChat({ projectId }: { projectId: number }) {
             <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
               {msg.role === "user" ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
             </div>
-            <div className={`max-w-[80%] rounded-lg p-3 text-sm ${msg.role === "user" ? "bg-primary/10 text-white" : "bg-muted/30 text-muted-foreground"} whitespace-pre-wrap`}>
-              {msg.content || <span className="animate-pulse">…</span>}
+            <div className={`max-w-[80%] rounded-lg p-3 text-sm ${msg.role === "user" ? "bg-primary/10 text-white whitespace-pre-wrap" : "bg-muted/30"}`}>
+              {msg.role === "assistant"
+                ? (msg.content
+                    ? <div
+                        dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                        className="[&_strong]:text-white [&_strong]:font-semibold [&_em]:text-slate-300 text-slate-200"
+                      />
+                    : <span className="animate-pulse text-muted-foreground">…</span>)
+                : msg.content
+              }
             </div>
           </div>
         ))}

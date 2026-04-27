@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { renderMarkdown } from "@/lib/markdown";
 import { useAuth } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListEntitiesQueryKey, getListRulesQueryKey, useGetProject, useUpdateProject } from "@workspace/api-client-react";
@@ -143,9 +144,15 @@ function OverviewChat({ projectId }: { projectId: number }) {
                   <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
                     m.role === "user"
                       ? "bg-primary/80 text-white rounded-tr-sm"
-                      : "bg-slate-800/60 border border-slate-700/50 text-slate-200 rounded-tl-sm"
+                      : "bg-slate-800/60 border border-slate-700/50 rounded-tl-sm"
                   }`}>
-                    <span className="whitespace-pre-wrap">{m.content}</span>
+                    {m.role === "assistant"
+                      ? <div
+                          dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }}
+                          className="[&_strong]:text-white [&_strong]:font-semibold [&_em]:text-slate-300"
+                        />
+                      : <span className="whitespace-pre-wrap text-white">{m.content}</span>
+                    }
                     {isStreaming && i === messages.length - 1 && m.role === "assistant" && m.content.length > 0 && (
                       <span className="inline-block w-1.5 h-3.5 bg-blue-400/60 animate-pulse ml-0.5 rounded-sm align-middle" />
                     )}

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { renderMarkdown } from "@/lib/markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,39 +49,6 @@ const EXAMPLE_PROMPTS = [
   "Compare the action selection systems in Viticulture vs Agricola",
   "Summarize key tension-building mechanics in modern euro games",
 ];
-
-// Simple inline markdown renderer
-function MarkdownText({ text }: { text: string }) {
-  const lines = text.split("\n");
-  return (
-    <div className="space-y-1">
-      {lines.map((line, i) => {
-        if (line.startsWith("### ")) return <p key={i} className="font-semibold text-white mt-2 mb-0.5 text-sm">{line.slice(4)}</p>;
-        if (line.startsWith("## ")) return <p key={i} className="font-bold text-white mt-3 mb-1">{line.slice(3)}</p>;
-        if (line.startsWith("# ")) return <p key={i} className="font-bold text-white text-base mt-3 mb-1">{line.slice(2)}</p>;
-        if (line.startsWith("- ") || line.startsWith("• ")) {
-          return (
-            <div key={i} className="flex gap-2 text-sm">
-              <span className="text-primary mt-0.5 shrink-0">•</span>
-              <span>{renderInline(line.slice(2))}</span>
-            </div>
-          );
-        }
-        if (line.trim() === "") return <div key={i} className="h-1.5" />;
-        return <p key={i} className="text-sm leading-relaxed">{renderInline(line)}</p>;
-      })}
-    </div>
-  );
-}
-
-function renderInline(text: string): React.ReactNode {
-  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) return <strong key={i} className="text-white font-semibold">{part.slice(2, -2)}</strong>;
-    if (part.startsWith("`") && part.endsWith("`")) return <code key={i} className="bg-slate-700/60 text-emerald-300 text-xs px-1 py-0.5 rounded font-mono">{part.slice(1, -1)}</code>;
-    return part;
-  });
-}
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -528,8 +496,11 @@ export default function ResearchTab({ projectId }: { projectId: number }) {
                     : "bg-slate-800/60 border border-slate-700/60 text-foreground rounded-tl-sm"
                 }`}>
                   {msg.role === "assistant"
-                    ? <MarkdownText text={cleanContent(msg.content)} />
-                    : <p>{msg.content}</p>}
+                    ? <div
+                        dangerouslySetInnerHTML={{ __html: renderMarkdown(cleanContent(msg.content)) }}
+                        className="[&_strong]:text-white [&_strong]:font-semibold [&_em]:text-slate-300"
+                      />
+                    : <p className="whitespace-pre-wrap">{msg.content}</p>}
                   {isStreaming && i === messages.length - 1 && msg.role === "assistant" && msg.content.length > 0 && (
                     <span className="inline-block w-1.5 h-4 bg-primary/60 animate-pulse ml-0.5 rounded-sm align-middle" />
                   )}
