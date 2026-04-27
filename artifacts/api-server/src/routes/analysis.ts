@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, asc, desc } from "drizzle-orm";
+import { eq, asc, desc, inArray } from "drizzle-orm";
 import {
   db, projectsTable, entitiesTable, propertiesTable, rulesTable,
   playersTable, changeLogTable, playtestFeedbackTable,
@@ -14,8 +14,10 @@ router.get("/projects/:projectId/balance-analysis", async (req, res): Promise<vo
   if (isNaN(projectId)) { res.status(400).json({ error: "Invalid ID" }); return; }
 
   const entities = await db.select().from(entitiesTable).where(eq(entitiesTable.projectId, projectId));
-  const allProps = await db.select().from(propertiesTable)
-    .where(eq(propertiesTable.projectId, projectId));
+  const entityIds = entities.map(e => e.id);
+  const allProps = entityIds.length > 0
+    ? await db.select().from(propertiesTable).where(inArray(propertiesTable.entityId, entityIds))
+    : [];
 
   // Group properties by entity
   const entityMap = entities.map(e => ({
