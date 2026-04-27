@@ -2,6 +2,8 @@
 
 A professional dark-mode developer tool platform for board game designers. Build complete board game systems using AI assistance, economic simulation, and structured ontologies.
 
+**GitHub:** https://github.com/Rla102277/GameForgeIO (main branch — all commits synced)
+
 ## Architecture
 
 **Monorepo (pnpm workspace)** with the following packages:
