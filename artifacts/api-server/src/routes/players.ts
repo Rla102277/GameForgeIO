@@ -128,7 +128,14 @@ Return a JSON array of ${count} player archetypes. Each must have:
 Only return the JSON array, nothing else.`;
 
   const userId = (req as any).auth?.userId as string | undefined;
-  const aiConfig = await getUserAIConfig(userId);
+  let aiConfig;
+  try {
+    aiConfig = await getUserAIConfig(userId);
+  } catch (err) {
+    console.error("[players/ai-generate] No AI provider configured:", err);
+    res.status(503).json({ error: "AI is not configured. Please add an API key in Settings." });
+    return;
+  }
 
   try {
     const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 2048 });
@@ -136,8 +143,9 @@ Only return the JSON array, nothing else.`;
     if (!jsonMatch) { res.status(500).json({ error: "Could not parse AI response" }); return; }
     const players = JSON.parse(jsonMatch[0]);
     res.json(players);
-  } catch {
-    res.status(500).json({ error: "AI generation failed" });
+  } catch (err) {
+    console.error("[players/ai-generate] AI call failed:", err);
+    res.status(500).json({ error: "AI generation failed. Please try again or check your API key in Settings." });
   }
 });
 
@@ -181,15 +189,23 @@ Generate improved, specific, and compelling content for this player archetype. R
 }`;
 
   const userId = (req as any).auth?.userId as string | undefined;
-  const aiConfig = await getUserAIConfig(userId);
+  let aiConfig;
+  try {
+    aiConfig = await getUserAIConfig(userId);
+  } catch (err) {
+    console.error("[player/ai-enhance] No AI provider configured:", err);
+    res.status(503).json({ error: "AI is not configured. Please add an API key in Settings." });
+    return;
+  }
 
   try {
     const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 800 });
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) { res.status(500).json({ error: "Could not parse AI response" }); return; }
     res.json(JSON.parse(match[0]));
-  } catch {
-    res.status(500).json({ error: "AI enhance failed" });
+  } catch (err) {
+    console.error("[player/ai-enhance] AI call failed:", err);
+    res.status(500).json({ error: "AI enhance failed. Please try again or check your API key in Settings." });
   }
 });
 

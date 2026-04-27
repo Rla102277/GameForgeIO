@@ -55,51 +55,92 @@ export const AI_PROVIDERS: Record<AIProvider, { label: string; description: stri
   },
 };
 
-/** Always returns Claude — used for narrative/creative tasks (overview chat, playthrough, storyboard). */
-export function getNarrativeAIConfig(): AIConfig {
-  return {
-    provider: "anthropic",
-    model: "claude-haiku-4-5",
-    apiKey: process.env.ANTHROPIC_API_KEY ?? "",
-  };
+/**
+ * Returns the best available system-level AI config.
+ * Priority:
+ *   1. OpenAI via Replit integration (if base URL + key both present)
+ *   2. Anthropic via ANTHROPIC_API_KEY (reliable in both dev and prod)
+ *   3. OpenAI direct (OPENAI_API_KEY without custom base URL)
+ * Throws if no provider is configured.
+ */
+export function getSystemAIConfig(): AIConfig {
+  const integrationKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  const integrationBaseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
+
+  if (integrationKey && integrationBaseURL) {
+    return {
+      provider: "openai",
+      model: "gpt-4o-mini",
+      apiKey: integrationKey,
+      baseURL: integrationBaseURL,
+    };
+  }
+
+  if (anthropicKey) {
+    return {
+      provider: "anthropic",
+      model: "claude-haiku-4-5",
+      apiKey: anthropicKey,
+    };
+  }
+
+  if (openaiKey) {
+    return {
+      provider: "openai",
+      model: "gpt-4o-mini",
+      apiKey: openaiKey,
+    };
+  }
+
+  throw new Error(
+    "No AI provider configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or the AI_INTEGRATIONS_OPENAI_* environment variables."
+  );
 }
 
-/** Returns the user's preferred analytical config, defaulting to OpenAI via Replit integration. */
-export async function getUserAIConfig(userId: string | null | undefined): Promise<AIConfig> {
-  const fallback: AIConfig = {
-    provider: "openai",
-    model: "gpt-4o-mini",
-    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY ?? process.env.OPENAI_API_KEY ?? "",
-    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  };
-
-  if (!userId) return fallback;
-
-  try {
-    const [settings] = await db.select().from(userSettingsTable).where(eq(userSettingsTable.userId, userId));
-    if (!settings) return fallback;
-
-    const provider = settings.provider as AIProvider;
-    const model = settings.model;
-
-    if (provider === "anthropic") {
-      const apiKey = settings.anthropicApiKey ?? process.env.ANTHROPIC_API_KEY ?? "";
-      if (!apiKey) return fallback;
-      return { provider, model, apiKey };
-    }
-
-    const keyMap: Record<Exclude<AIProvider, "anthropic">, string | null | undefined> = {
-      gemini: settings.geminiApiKey,
-      openai: settings.openaiApiKey,
-      xai: settings.xaiApiKey,
+/** Always returns Claude — used for narrative/creative tasks (overview chat, playthrough, storyboard). */
+export function getNarrativeAIConfig(): AIConfig {
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (anthropicKey) {
+    return {
+      provider: "anthropic",
+      model: "claude-haiku-4-5",
+      apiKey: anthropicKey,
     };
-
-    const userKey = keyMap[provider as Exclude<AIProvider, "anthropic">];
-    if (!userKey) return fallback;
-    return { provider, model, apiKey: userKey, baseURL: PROVIDER_BASE_URLS[provider] };
-  } catch {
-    return fallback;
   }
+  return getSystemAIConfig();
+}
+
+/** Returns the user's preferred analytical config, defaulting to best available system config.
+ * Order: user-configured provider → system env-var provider → throws if nothing available. */
+export async function getUserAIConfig(userId: string | null | undefined): Promise<AIConfig> {
+  if (userId) {
+    try {
+      const [settings] = await db.select().from(userSettingsTable).where(eq(userSettingsTable.userId, userId));
+      if (settings) {
+        const provider = settings.provider as AIProvider;
+        const model = settings.model;
+
+        if (provider === "anthropic") {
+          const apiKey = settings.anthropicApiKey ?? process.env.ANTHROPIC_API_KEY ?? "";
+          if (apiKey) return { provider, model, apiKey };
+        } else {
+          const keyMap: Record<Exclude<AIProvider, "anthropic">, string | null | undefined> = {
+            gemini: settings.geminiApiKey,
+            openai: settings.openaiApiKey,
+            xai: settings.xaiApiKey,
+          };
+          const userKey = keyMap[provider as Exclude<AIProvider, "anthropic">];
+          if (userKey) return { provider, model, apiKey: userKey, baseURL: PROVIDER_BASE_URLS[provider] };
+        }
+      }
+    } catch (err) {
+      console.error("[getUserAIConfig] Failed to load user settings, falling back to system config:", err);
+    }
+  }
+
+  return getSystemAIConfig();
 }
 
 export async function streamAI(

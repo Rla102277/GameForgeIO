@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import {
   useListEntities, useCreateEntity, useDeleteEntity,
   useListProperties, useCreateProperty, useDeleteProperty,
@@ -540,6 +541,7 @@ function EntityCard({ entity, projectId, isExpanded, onToggle, onDelete, onUpdat
   onUpdated?: () => void;
 }) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [showEnhance, setShowEnhance] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [enhance, setEnhance] = useState<AIEnhance | null>(null);
@@ -581,7 +583,16 @@ function EntityCard({ entity, projectId, isExpanded, onToggle, onDelete, onUpdat
         const data: AIEnhance = await res.json();
         setEnhance(data);
         setSelectedProps(new Set(data.suggestedProperties.map((_, i) => i)));
+      } else {
+        const body = await res.json().catch(() => ({}));
+        toast({
+          title: "AI enhance failed",
+          description: body?.error ?? "Something went wrong. Please try again.",
+          variant: "destructive",
+        });
       }
+    } catch {
+      toast({ title: "AI enhance failed", description: "Could not reach the server.", variant: "destructive" });
     } finally {
       setIsEnhancing(false);
     }

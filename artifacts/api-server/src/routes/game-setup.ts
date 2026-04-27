@@ -154,7 +154,15 @@ Generate at least 5 entities, 8 rules, and 3 player archetypes. Make them specif
   res.setHeader("Connection", "keep-alive");
 
   const userId = (req as any).auth?.userId as string | undefined;
-  const aiConfig = await getUserAIConfig(userId);
+  let aiConfig;
+  try {
+    aiConfig = await getUserAIConfig(userId);
+  } catch (err) {
+    console.error("[analyze-and-build] No AI provider configured:", err);
+    res.write(`data: ${JSON.stringify({ error: "AI is not configured. Please add an API key in Settings." })}\n\n`);
+    res.end();
+    return;
+  }
 
   try {
     const fullResponse = await streamAI(aiConfig, [{ role: "user", content: prompt }], (text) => {
@@ -163,6 +171,7 @@ Generate at least 5 entities, 8 rules, and 3 player archetypes. Make them specif
     res.write(`data: ${JSON.stringify({ done: true, raw: fullResponse })}\n\n`);
     res.end();
   } catch (e) {
+    console.error("[analyze-and-build] AI stream failed:", e);
     res.write(`data: ${JSON.stringify({ error: String(e) })}\n\n`);
     res.end();
   }
@@ -285,15 +294,23 @@ Generate ${count} new game entities as JSON array. Each should be:
 Make them fit the game theme. Do NOT duplicate existing entities. Only return the JSON array.`;
 
   const userId = (req as any).auth?.userId as string | undefined;
-  const aiConfig = await getUserAIConfig(userId);
+  let aiConfig;
+  try {
+    aiConfig = await getUserAIConfig(userId);
+  } catch (err) {
+    console.error("[ai-generate-entities] No AI provider configured:", err);
+    res.status(503).json({ error: "AI is not configured. Please add an API key in Settings." });
+    return;
+  }
 
   try {
     const text = await callAI(aiConfig, [{ role: "user", content: aiPrompt }], { maxTokens: 3000 });
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) { res.status(500).json({ error: "Could not parse AI response" }); return; }
     res.json(JSON.parse(jsonMatch[0]));
-  } catch {
-    res.status(500).json({ error: "AI generation failed" });
+  } catch (err) {
+    console.error("[ai-generate-entities] AI call failed:", err);
+    res.status(500).json({ error: "AI generation failed. Please try again or check your API key in Settings." });
   }
 });
 
@@ -324,15 +341,23 @@ Generate ${count} new ${category ? `"${category}"` : ""} rules as JSON array:
 Rules should reference the actual entities. Do NOT duplicate existing rules. Only return the JSON array.`;
 
   const userId = (req as any).auth?.userId as string | undefined;
-  const aiConfig = await getUserAIConfig(userId);
+  let aiConfig;
+  try {
+    aiConfig = await getUserAIConfig(userId);
+  } catch (err) {
+    console.error("[ai-generate-rules] No AI provider configured:", err);
+    res.status(503).json({ error: "AI is not configured. Please add an API key in Settings." });
+    return;
+  }
 
   try {
     const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 3000 });
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) { res.status(500).json({ error: "Could not parse AI response" }); return; }
     res.json(JSON.parse(jsonMatch[0]));
-  } catch {
-    res.status(500).json({ error: "AI generation failed" });
+  } catch (err) {
+    console.error("[ai-generate-rules] AI call failed:", err);
+    res.status(500).json({ error: "AI generation failed. Please try again or check your API key in Settings." });
   }
 });
 
@@ -377,15 +402,23 @@ Return a JSON object with:
 Suggest 2-5 properties that are NOT already defined. Make them mechanically meaningful for a ${entity.type} in a ${project.genre || "board"} game. Only return the JSON object.`;
 
   const userId = (req as any).auth?.userId as string | undefined;
-  const aiConfig = await getUserAIConfig(userId);
+  let aiConfig;
+  try {
+    aiConfig = await getUserAIConfig(userId);
+  } catch (err) {
+    console.error("[entity/ai-enhance] No AI provider configured:", err);
+    res.status(503).json({ error: "AI is not configured. Please add an API key in Settings." });
+    return;
+  }
 
   try {
     const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 1500 });
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) { res.status(500).json({ error: "Could not parse AI response" }); return; }
     res.json(JSON.parse(jsonMatch[0]));
-  } catch {
-    res.status(500).json({ error: "AI enhance failed" });
+  } catch (err) {
+    console.error("[entity/ai-enhance] AI call failed:", err);
+    res.status(500).json({ error: "AI enhance failed. Please try again or check your API key in Settings." });
   }
 });
 

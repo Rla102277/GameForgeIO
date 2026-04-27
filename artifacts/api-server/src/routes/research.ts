@@ -150,7 +150,15 @@ ${fetchedContent ? `\n\nFetched content from ${fetchedUrl}:\n---\n${fetchedConte
   ];
 
   const userId = (req as any).auth?.userId as string | undefined;
-  const aiConfig = await getUserAIConfig(userId);
+  let aiConfig;
+  try {
+    aiConfig = await getUserAIConfig(userId);
+  } catch (err) {
+    console.error("[research-chat] No AI provider configured:", err);
+    send({ error: "AI is not configured. Please add an API key in Settings." });
+    res.end();
+    return;
+  }
 
   try {
     const fullText = await streamAI(aiConfig, messages, (text) => { send({ content: text }); }, { system: systemPrompt, maxTokens: 2000 });
@@ -227,13 +235,21 @@ ${instruction}
 Return ONLY the new description text, nothing else. No quotes, no preamble.`;
 
   const userId = (req as any).auth?.userId as string | undefined;
-  const aiConfig = await getUserAIConfig(userId);
+  let aiConfig;
+  try {
+    aiConfig = await getUserAIConfig(userId);
+  } catch (err) {
+    console.error("[description/ai-enhance] No AI provider configured:", err);
+    res.status(503).json({ error: "AI is not configured. Please add an API key in Settings." });
+    return;
+  }
 
   try {
     const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 300 });
     res.json({ description: text.trim() });
-  } catch {
-    res.status(500).json({ error: "AI enhance failed" });
+  } catch (err) {
+    console.error("[description/ai-enhance] AI call failed:", err);
+    res.status(500).json({ error: "AI enhance failed. Please try again or check your API key in Settings." });
   }
 });
 
@@ -444,7 +460,15 @@ Generate a complete, detailed JSON blueprint:
 Generate at minimum: 8 entities, 12 rules, 3 player archetypes. Draw directly from the research materials.`;
 
   const userId = (req as any).auth?.userId as string | undefined;
-  const aiConfig = await getUserAIConfig(userId);
+  let aiConfig;
+  try {
+    aiConfig = await getUserAIConfig(userId);
+  } catch (err) {
+    console.error("[research/build-blueprint] No AI provider configured:", err);
+    send({ error: "AI is not configured. Please add an API key in Settings." });
+    res.end();
+    return;
+  }
 
   try {
     const fullText = await streamAI(aiConfig, [{ role: "user", content: prompt }], (text) => {
@@ -453,6 +477,7 @@ Generate at minimum: 8 entities, 12 rules, 3 player archetypes. Draw directly fr
     send({ done: true, raw: fullText });
     res.end();
   } catch (e) {
+    console.error("[research/build-blueprint] AI stream failed:", e);
     send({ error: String(e) });
     res.end();
   }

@@ -264,8 +264,11 @@ function PlayerCard({ player, projectId, onUpdate, onDelete }: {
         setShowEnhance(true);
         setExpanded(true);
       } else {
-        toast({ title: "AI enhance failed", variant: "destructive" });
+        const body = await res.json().catch(() => ({}));
+        toast({ title: "AI enhance failed", description: body?.error ?? "Please try again.", variant: "destructive" });
       }
+    } catch {
+      toast({ title: "AI enhance failed", description: "Could not reach the server.", variant: "destructive" });
     } finally {
       setIsEnhancing(false);
     }

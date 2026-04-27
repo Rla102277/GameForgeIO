@@ -156,15 +156,23 @@ Return ONLY this JSON (no markdown, no explanation):
 }`;
 
   const userId = (req as any).auth?.userId as string | undefined;
-  const aiConfig = await getUserAIConfig(userId);
+  let aiConfig;
+  try {
+    aiConfig = await getUserAIConfig(userId);
+  } catch (err) {
+    console.error("[rule/ai-enhance] No AI provider configured:", err);
+    res.status(503).json({ error: "AI is not configured. Please add an API key in Settings." });
+    return;
+  }
 
   try {
     const text = await callAI(aiConfig, [{ role: "user", content: prompt }], { maxTokens: 1000 });
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) { res.status(500).json({ error: "Could not parse response" }); return; }
     res.json(JSON.parse(match[0]));
-  } catch {
-    res.status(500).json({ error: "AI enhance failed" });
+  } catch (err) {
+    console.error("[rule/ai-enhance] AI call failed:", err);
+    res.status(500).json({ error: "AI enhance failed. Please try again or check your API key in Settings." });
   }
 });
 
@@ -239,7 +247,15 @@ Be specific, reference the actual entities and rules by name. Be concise but tho
   res.setHeader("Connection", "keep-alive");
 
   const userId = (req as any).auth?.userId as string | undefined;
-  const aiConfig = await getUserAIConfig(userId);
+  let aiConfig;
+  try {
+    aiConfig = await getUserAIConfig(userId);
+  } catch (err) {
+    console.error("[rules-sandbox] No AI provider configured:", err);
+    res.write(`data: ${JSON.stringify({ error: "AI is not configured. Please add an API key in Settings." })}\n\n`);
+    res.end();
+    return;
+  }
 
   try {
     const fullResponse = await streamAI(aiConfig, chatMessages, (text) => {
@@ -252,6 +268,7 @@ Be specific, reference the actual entities and rules by name. Be concise but tho
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
   } catch (e) {
+    console.error("[rules-sandbox] AI stream failed:", e);
     res.write(`data: ${JSON.stringify({ error: String(e) })}\n\n`);
     res.end();
   }

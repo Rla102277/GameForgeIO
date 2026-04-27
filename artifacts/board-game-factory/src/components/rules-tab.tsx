@@ -84,8 +84,14 @@ function RuleCard({ rule, projectId, onUpdated, onDeleted }: {
       const res = await fetch(`${BASE}/projects/${projectId}/rules/${rule.id}/ai-enhance`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
       });
-      if (res.ok) setEnhance(await res.json());
-      else toast({ title: "AI enhance failed", variant: "destructive" });
+      if (res.ok) {
+        setEnhance(await res.json());
+      } else {
+        const body = await res.json().catch(() => ({}));
+        toast({ title: "AI enhance failed", description: body?.error ?? "Please try again.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "AI enhance failed", description: "Could not reach the server.", variant: "destructive" });
     } finally {
       setIsEnhancing(false);
     }
